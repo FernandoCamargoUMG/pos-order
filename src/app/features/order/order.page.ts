@@ -55,6 +55,7 @@ import { TableService } from '../../core/services/table.service';
 import { Product, Table } from '../../core/models';
 import { ProductModifiersModalComponent } from './product-modifiers-modal/product-modifiers-modal.component';
 import { UpsellingModalComponent } from './upselling-modal/upselling-modal.component';
+import { SplitCheckModalComponent } from './split-check-modal/split-check-modal.component';
 
 interface OrderItem {
   product: Product;
@@ -109,6 +110,10 @@ export class OrderPage implements OnInit, OnDestroy {
   searchTerm: string = '';
   orderItems: OrderItem[] = [];
   
+  // Para gestión de cuentas
+  showAccountsView: boolean = false;
+  existingOrders: any[] = [];
+  
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -136,6 +141,25 @@ export class OrderPage implements OnInit, OnDestroy {
     });
   }
 
+  async openSplitCheck() {
+    const modal = await this.modalController.create({
+      component: SplitCheckModalComponent,
+      componentProps: {
+        tableId: this.tableId,
+        tableName: this.table?.name || `Mesa ${this.tableId}`
+      }
+    });
+
+    await modal.present();
+
+    const { data, role } = await modal.onWillDismiss();
+
+    if (role === 'new-check') {
+      // Usuario quiere crear nueva cuenta - limpiar orden actual
+      this.orderItems = [];
+    }
+  }
+
   async ngOnInit() {
     // Obtener ID de mesa de la ruta
     const id = this.route.snapshot.paramMap.get('id');
@@ -144,12 +168,75 @@ export class OrderPage implements OnInit, OnDestroy {
       await this.loadTable();
       await this.loadProducts();
       await this.loadCategories();
+      
+      // Si la mesa está ocupada, mostrar vista de cuentas primero
+      if (this.table?.status === 'OCCUPIED') {
+        await this.loadExistingOrders();
+        this.showAccountsView = true;
+      }
     }
 
     // Manejar botón de atrás
     this.platform.backButton.subscribeWithPriority(10, () => {
       this.goBack();
     });
+  }
+
+  async loadExistingOrders() {
+    this.existingOrders = await this.orderService.getOrdersByTable(this.tableId);
+    
+    // Cargar items de cada orden
+    for (const order of this.existingOrders) {
+      const items = await this.orderService.getOrderItems(order.id_local);
+      order.items = items;
+      order.total = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+    }
+  }
+
+  startNewAccount() {
+    this.showAccountsView = false;
+    this.orderItems = [];
+  }
+
+  continueOrdering() {
+    this.showAccountsView = false;
+  }
+
+  async viewAccount(order: any) {
+    // Abrir modal de detalle de cuenta con SplitCheckModal
+    const modal = await this.modalController.create({
+      component: SplitCheckModalComponent,
+      componentProps: {
+        tableId: this.tableId,
+        tableName: this.table?.name || `Mesa ${this.tableId}`,
+        selectedOrderId: order.id_local // Para mostrar esta cuenta expandida
+      }
+    });
+
+    await modal.present();
+    
+    const { data, role } = await modal.onWillDismiss();
+    
+    // Recargar órdenes después de cerrar el modal
+    await this.loadExistingOrders();
+  }
+
+  getOrderStatusText(status: string): string {
+    switch (status) {
+      case 'SENT': return 'Enviada a cocina';
+      case 'PAYING': return 'Pagando';
+      case 'CLOSED': return 'Cerrada';
+      default: return status;
+    }
+  }
+
+  getOrderStatusColor(status: string): string {
+    switch (status) {
+      case 'SENT': return 'primary';
+      case 'PAYING': return 'warning';
+      case 'CLOSED': return 'success';
+      default: return 'medium';
+    }
   }
 
   ngOnDestroy() {

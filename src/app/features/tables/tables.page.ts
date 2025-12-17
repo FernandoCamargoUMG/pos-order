@@ -25,9 +25,10 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { TableService } from '../../core/services/table.service';
+import { OrderService } from '../../core/services/order.service';
 import { Table } from '../../core/models';
 import { addIcons } from 'ionicons';
-import { logOutOutline, pricetagOutline, arrowBackOutline, restaurantOutline, addOutline } from 'ionicons/icons';
+import { logOutOutline, pricetagOutline, arrowBackOutline, restaurantOutline, addOutline, timeOutline, receiptOutline } from 'ionicons/icons';
 import { App } from '@capacitor/app';
 
 @Component({
@@ -64,14 +65,16 @@ export class TablesPage implements OnInit, OnDestroy {
   selectedLevel: number = 1;
   tables: Table[] = [];
   filteredTables: Table[] = [];
+  tableOrderCounts: Map<number, number> = new Map(); // Mapa de table_id -> cantidad de órdenes
 
   constructor(
     private authService: AuthService,
     private tableService: TableService,
+    private orderService: OrderService,
     private router: Router,
     private platform: Platform
   ) {
-    addIcons({ logOutOutline, pricetagOutline, arrowBackOutline, restaurantOutline, addOutline });
+    addIcons({ logOutOutline, pricetagOutline, arrowBackOutline, restaurantOutline, addOutline, timeOutline, receiptOutline });
     
     // Verificar si el usuario es administrador
     this.authService.currentUser$.subscribe(user => {
@@ -95,6 +98,13 @@ export class TablesPage implements OnInit, OnDestroy {
 
   async loadTables() {
     this.tables = await this.tableService.getAllTables();
+    
+    // Cargar cantidad de órdenes activas por mesa
+    for (const table of this.tables) {
+      const orders = await this.orderService.getOrdersByTable(table.id);
+      this.tableOrderCounts.set(table.id, orders.length);
+    }
+    
     this.filterTablesByLevel();
   }
 
@@ -121,6 +131,10 @@ export class TablesPage implements OnInit, OnDestroy {
 
   getTableStatusText(table: Table): string {
     return this.tableService.getTableStatusText(table.status || 'FREE');
+  }
+
+  getOrderCount(tableId: number): number {
+    return this.tableOrderCounts.get(tableId) || 0;
   }
 
   async onTableClick(table: Table) {

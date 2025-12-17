@@ -51,6 +51,10 @@
               <ion-badge [color]="getTableColor(table)">
                 {{ getTableStatusText(table) }}
               </ion-badge>
+              <p *ngIf="table.status === 'OCCUPIED'" class="order-info">
+                <ion-icon name="receipt-outline"></ion-icon>
+                {{ getOrderCount(table.id) }} {{ getOrderCount(table.id) === 1 ? 'orden' : 'órdenes' }}
+              </p>
               <p *ngIf="table.status === 'OCCUPIED'" class="order-time">
                 <ion-icon name="time-outline"></ion-icon>
                 Orden activa

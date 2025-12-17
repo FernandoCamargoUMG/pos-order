@@ -1,0 +1,94 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-button (click)="close()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Gestión de Cuentas - {{ tableName }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <div class="header-section">
+    <h2>Órdenes Activas ({{ orders.length }})</h2>
+    <ion-button (click)="createNewCheck()" color="success">
+      <ion-icon slot="start" name="add-outline"></ion-icon>
+      Nueva Cuenta
+    </ion-button>
+  </div>
+
+  <div class="orders-list" *ngIf="orders.length > 0">
+    <ion-card *ngFor="let order of orders" class="order-card">
+      <ion-card-header>
+        <div class="order-header">
+          <div>
+            <ion-card-title>Cuenta #{{ order.id_local.slice(-6) }}</ion-card-title>
+            <p class="order-date">{{ order.created_at | date:'short' }}</p>
+          </div>
+          <ion-badge [color]="getStatusBadgeColor(order.status)">
+            {{ getStatusText(order.status) }}
+          </ion-badge>
+        </div>
+      </ion-card-header>
+
+      <ion-card-content>
+        <!-- Items de la orden -->
+        <ion-list class="items-list">
+          <ion-item *ngFor="let item of getOrderItems(order.id_local)" lines="none">
+            <ion-label>
+              <h3>{{ item.quantity }}x {{ item.product_name }}</h3>
+              <p *ngIf="item.modifiers && item.modifiers.length > 0" class="modifiers">
+                {{ item.modifiers.join(', ') }}
+              </p>
+            </ion-label>
+            <ion-label slot="end" class="price">
+              Q{{ (item.price * item.quantity).toFixed(2) }}
+            </ion-label>
+          </ion-item>
+        </ion-list>
+
+        <!-- Total -->
+        <div class="order-total">
+          <strong>Total:</strong>
+          <span class="total-amount">Q{{ getOrderTotal(order.id_local).toFixed(2) }}</span>
+        </div>
+
+        <!-- Acciones -->
+        <div class="order-actions">
+          <ion-button 
+            *ngIf="order.status === 'SENT'" 
+            (click)="markAsPaying(order)" 
+            expand="block" 
+            color="warning">
+            <ion-icon slot="start" name="card-outline"></ion-icon>
+            Pagar
+          </ion-button>
+          
+          <ion-button 
+            *ngIf="order.status === 'PAYING'" 
+            (click)="closeOrder(order)" 
+            expand="block" 
+            color="success">
+            <ion-icon slot="start" name="checkmark-outline"></ion-icon>
+            Cerrar Cuenta
+          </ion-button>
+
+          <p *ngIf="order.status === 'CLOSED'" class="closed-message">
+            <ion-icon name="checkmark-outline"></ion-icon>
+            Cuenta cerrada
+          </p>
+        </div>
+      </ion-card-content>
+    </ion-card>
+  </div>
+
+  <div class="empty-state" *ngIf="orders.length === 0">
+    <ion-icon name="receipt-outline" size="large"></ion-icon>
+    <p>No hay órdenes activas en esta mesa</p>
+    <ion-button (click)="createNewCheck()" color="success">
+      <ion-icon slot="start" name="add-outline"></ion-icon>
+      Crear Primera Orden
+    </ion-button>
+  </div>
+</ion-content>

@@ -33,6 +33,20 @@
     padding: 6px 12px;
   }
   
+  .order-info {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--ion-color-primary);
+    
+    ion-icon {
+      font-size: 1.1rem;
+    }
+  }
+  
   .order-time {
     display: flex;
     align-items: center;

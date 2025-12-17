@@ -7,41 +7,86 @@
     </ion-buttons>
     <ion-title>{{ table?.name }}</ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="clearOrder()" *ngIf="orderItems.length > 0">
+      <ion-button (click)="clearOrder()" *ngIf="orderItems.length > 0 && !showAccountsView">
         <ion-icon slot="icon-only" name="trash-outline" color="danger"></ion-icon>
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
   
-  <!-- Búsqueda y Categorías -->
-  <ion-toolbar>
-    <ion-searchbar
-      [(ngModel)]="searchTerm"
-      (ionInput)="onSearchChange($event)"
-      placeholder="Buscar productos..."
-      mode="ios"
-      animated="true">
-    </ion-searchbar>
-  </ion-toolbar>
-  
-  <ion-toolbar>
-    <ion-segment 
-      [(ngModel)]="selectedCategory" 
-      (ionChange)="onCategoryChange($event)" 
-      scrollable="true"
-      mode="ios">
-      <ion-segment-button value="all">
-        <ion-label>Todos</ion-label>
-      </ion-segment-button>
-      <ion-segment-button *ngFor="let category of categories" [value]="category">
-        <ion-label>{{ category }}</ion-label>
-      </ion-segment-button>
-    </ion-segment>
-  </ion-toolbar>
+  <!-- Búsqueda y Categorías - Solo cuando NO estamos en vista de cuentas -->
+  <ng-container *ngIf="!showAccountsView">
+    <ion-toolbar>
+      <ion-searchbar
+        [(ngModel)]="searchTerm"
+        (ionInput)="onSearchChange($event)"
+        placeholder="Buscar productos..."
+        mode="ios"
+        animated="true">
+      </ion-searchbar>
+    </ion-toolbar>
+    
+    <ion-toolbar>
+      <ion-segment 
+        [(ngModel)]="selectedCategory" 
+        (ionChange)="onCategoryChange($event)" 
+        scrollable="true"
+        mode="ios">
+        <ion-segment-button value="all">
+          <ion-label>Todos</ion-label>
+        </ion-segment-button>
+        <ion-segment-button *ngFor="let category of categories" [value]="category">
+          <ion-label>{{ category }}</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+    </ion-toolbar>
+  </ng-container>
 </ion-header>
 
 <ion-content class="ion-padding">
-  <!-- Grid de Productos -->
+  <!-- VISTA DE CUENTAS EXISTENTES -->
+  <div *ngIf="showAccountsView" class="accounts-view">
+    <div class="accounts-header">
+      <h2>Cuentas en {{ table?.name }}</h2>
+      <p class="subtitle">{{ existingOrders.length }} {{ existingOrders.length === 1 ? 'cuenta activa' : 'cuentas activas' }}</p>
+    </div>
+
+    <div class="accounts-actions">
+      <ion-button expand="block" color="success" size="large" (click)="startNewAccount()">
+        <ion-icon slot="start" name="add-outline"></ion-icon>
+        Nueva Cuenta
+      </ion-button>
+      <ion-button expand="block" fill="outline" size="large" (click)="continueOrdering()">
+        <ion-icon slot="start" name="restaurant-outline"></ion-icon>
+        Ver Productos
+      </ion-button>
+    </div>
+
+    <div class="accounts-list">
+      <ion-card *ngFor="let order of existingOrders" class="account-card" button (click)="viewAccount(order)">
+        <ion-card-header>
+          <div class="account-header">
+            <div>
+              <ion-card-title>Cuenta #{{ order.id_local.slice(-6) }}</ion-card-title>
+              <p class="order-time">{{ order.created_at | date:'short' }}</p>
+            </div>
+            <ion-badge [color]="getOrderStatusColor(order.status)">
+              {{ getOrderStatusText(order.status) }}
+            </ion-badge>
+          </div>
+        </ion-card-header>
+        <ion-card-content>
+          <div class="account-items">
+            <p class="items-count">{{ order.items?.length || 0 }} items</p>
+            <p class="account-total">Q{{ order.total?.toFixed(2) || '0.00' }}</p>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+  </div>
+
+  <!-- VISTA DE PRODUCTOS (original) -->
+  <ng-container *ngIf="!showAccountsView">
+    <!-- Grid de Productos -->
   <ion-grid class="products-grid">
     <ion-row>
       <ion-col size="6" size-md="4" size-lg="3" *ngFor="let product of filteredProducts">
@@ -120,10 +165,11 @@
       <div class="total-amount">Q{{ getTotal() | number:'1.2-2' }}</div>
     </div>
   </div>
+  </ng-container>
 </ion-content>
 
 <!-- Botón Flotante para Enviar Orden -->
-<ion-fab slot="fixed" vertical="bottom" horizontal="end" *ngIf="orderItems.length > 0">
+<ion-fab slot="fixed" vertical="bottom" horizontal="end" *ngIf="orderItems.length > 0 && !showAccountsView">
   <ion-fab-button color="success" (click)="sendOrder()" size="large">
     <ion-icon name="send-outline"></ion-icon>
   </ion-fab-button>

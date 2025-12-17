@@ -1,0 +1,128 @@
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+}
+
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.order-card {
+  margin: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+
+  .order-date {
+    margin: 4px 0 0 0;
+    font-size: 0.85rem;
+    opacity: 0.7;
+  }
+}
+
+.items-list {
+  padding: 0;
+  margin: 0 0 12px 0;
+  background: transparent;
+
+  ion-item {
+    --padding-start: 0;
+    --inner-padding-end: 0;
+    --background: transparent;
+    margin-bottom: 8px;
+
+    h3 {
+      font-weight: 600;
+      margin: 0 0 4px 0;
+    }
+
+    .modifiers {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--ion-color-medium);
+      font-style: italic;
+    }
+
+    .price {
+      text-align: right;
+      font-weight: 600;
+      color: var(--ion-color-primary);
+    }
+  }
+}
+
+.order-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 2px solid var(--ion-color-light);
+  margin-bottom: 12px;
+
+  strong {
+    font-size: 1.1rem;
+  }
+
+  .total-amount {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--ion-color-primary);
+  }
+}
+
+.order-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .closed-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    padding: 12px;
+    background: var(--ion-color-success-tint);
+    color: var(--ion-color-success-contrast);
+    border-radius: 8px;
+    font-weight: 600;
+
+    ion-icon {
+      font-size: 1.2rem;
+    }
+  }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+
+  ion-icon {
+    color: var(--ion-color-medium);
+    margin-bottom: 16px;
+  }
+
+  p {
+    color: var(--ion-color-medium);
+    font-size: 1.1rem;
+    margin-bottom: 24px;
+  }
+}
