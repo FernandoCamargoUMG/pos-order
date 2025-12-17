@@ -12,7 +12,7 @@ import {
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { addIcons } from 'ionicons';
-import { logOutOutline } from 'ionicons/icons';
+import { logOutOutline, pricetagOutline } from 'ionicons/icons';
 
 @Component({
   selector: 'app-kds',
@@ -35,7 +35,7 @@ export class KdsPage {
     private authService: AuthService,
     private router: Router
   ) {
-    addIcons({ logOutOutline });
+    addIcons({ logOutOutline, pricetagOutline });
   }
 
   async logout() {

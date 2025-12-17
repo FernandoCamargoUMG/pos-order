@@ -1,0 +1,72 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>Productos</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="logout()">
+        <ion-icon slot="icon-only" name="log-out-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+
+  <ion-toolbar>
+    <ion-searchbar
+      [(ngModel)]="searchTerm"
+      (ionInput)="onSearchChange($event)"
+      placeholder="Buscar productos..."
+      debounce="300">
+    </ion-searchbar>
+  </ion-toolbar>
+
+  <ion-toolbar>
+    <ion-segment [(ngModel)]="selectedCategory" (ionChange)="onCategoryChange($event)" scrollable>
+      <ion-segment-button value="all">
+        <ion-label>Todos</ion-label>
+      </ion-segment-button>
+      <ion-segment-button *ngFor="let category of categories" [value]="category">
+        <ion-label>{{ category }}</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-list>
+    <ion-item-sliding *ngFor="let product of filteredProducts">
+      <ion-item [button]="true" (click)="editProduct(product)">
+        <ion-icon slot="start" name="pricetag-outline" [color]="product.active ? 'primary' : 'medium'"></ion-icon>
+        <ion-label>
+          <h2>{{ product.name }}</h2>
+          <p>{{ product.category || 'Sin categoría' }}</p>
+        </ion-label>
+        <ion-badge slot="end" color="success">
+          {{ formatPrice(product.price) }}
+        </ion-badge>
+        <ion-badge slot="end" [color]="product.active ? 'success' : 'danger'">
+          <ion-icon [name]="product.active ? 'checkmark-circle' : 'close-circle'"></ion-icon>
+        </ion-badge>
+      </ion-item>
+
+      <ion-item-options side="end">
+        <ion-item-option color="primary" (click)="editProduct(product)">
+          <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+        </ion-item-option>
+        <ion-item-option color="danger" (click)="confirmDelete(product)">
+          <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+        </ion-item-option>
+      </ion-item-options>
+    </ion-item-sliding>
+  </ion-list>
+
+  <div *ngIf="filteredProducts.length === 0" style="text-align: center; padding: 40px;">
+    <ion-icon name="search-outline" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
+    <p style="color: var(--ion-color-medium); margin-top: 16px;">
+      No se encontraron productos
+    </p>
+  </div>
+
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button (click)="addProduct()">
+      <ion-icon name="add-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

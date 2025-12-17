@@ -23,6 +23,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/kds/kds.page').then((m) => m.KdsPage),
   },
   {
+    path: 'products',
+    loadComponent: () => import('./features/products/products.page').then((m) => m.ProductsPage),
+  },
+  {
+    path: 'products/form',
+    loadComponent: () => import('./features/products/product-form.page').then((m) => m.ProductFormPage),
+  },
+  {
     path: 'home',
     loadComponent: () => import('./home/home.page').then((m) => m.HomePage),
   },
