@@ -1,0 +1,130 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ table?.name }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="clearOrder()" *ngIf="orderItems.length > 0">
+        <ion-icon slot="icon-only" name="trash-outline" color="danger"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  
+  <!-- Búsqueda y Categorías -->
+  <ion-toolbar>
+    <ion-searchbar
+      [(ngModel)]="searchTerm"
+      (ionInput)="onSearchChange($event)"
+      placeholder="Buscar productos..."
+      mode="ios"
+      animated="true">
+    </ion-searchbar>
+  </ion-toolbar>
+  
+  <ion-toolbar>
+    <ion-segment 
+      [(ngModel)]="selectedCategory" 
+      (ionChange)="onCategoryChange($event)" 
+      scrollable="true"
+      mode="ios">
+      <ion-segment-button value="all">
+        <ion-label>Todos</ion-label>
+      </ion-segment-button>
+      <ion-segment-button *ngFor="let category of categories" [value]="category">
+        <ion-label>{{ category }}</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <!-- Grid de Productos -->
+  <ion-grid class="products-grid">
+    <ion-row>
+      <ion-col size="6" size-md="4" size-lg="3" *ngFor="let product of filteredProducts">
+        <ion-card 
+          [button]="true" 
+          (click)="onProductClick(product)"
+          class="product-card"
+          [class.disabled]="!product.active">
+          <div class="product-image-placeholder">
+            <ion-icon name="fast-food-outline"></ion-icon>
+          </div>
+          <ion-card-header>
+            <ion-card-title class="product-name">{{ product.name }}</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            <div class="product-info">
+              <div class="product-price">Q{{ product.price | number:'1.2-2' }}</div>
+              <ion-badge [color]="product.active ? 'success' : 'danger'" class="product-status">
+                {{ product.active ? 'Disponible' : 'Agotado' }}
+              </ion-badge>
+            </div>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
+
+  <!-- Orden Actual (Carrito) -->
+  <div class="order-summary" *ngIf="orderItems.length > 0">
+    <div class="order-header">
+      <h3>
+        <ion-icon name="cart-outline"></ion-icon>
+        Orden Actual
+      </h3>
+      <ion-badge color="primary" class="items-badge">{{ getItemsCount() }}</ion-badge>
+    </div>
+    
+    <ion-list class="order-list">
+      <ion-item-sliding *ngFor="let item of orderItems; let i = index">
+        <ion-item lines="none" class="order-item">
+          <ion-label>
+            <h3 class="item-name">{{ item.product.name }}</h3>
+            <p *ngIf="item.modifiers.length > 0" class="item-modifiers">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              {{ item.modifiers.join(', ') }}
+            </p>
+            <p *ngIf="item.notes" class="item-notes">
+              <ion-icon name="document-text-outline"></ion-icon>
+              {{ item.notes }}
+            </p>
+          </ion-label>
+          <div class="item-controls" slot="end">
+            <div class="quantity-controls">
+              <ion-button fill="clear" size="small" (click)="decreaseQuantity(item)" color="medium">
+                <ion-icon slot="icon-only" name="remove-circle-outline"></ion-icon>
+              </ion-button>
+              <span class="quantity">{{ item.quantity }}</span>
+              <ion-button fill="clear" size="small" (click)="increaseQuantity(item)" color="success">
+                <ion-icon slot="icon-only" name="add-circle-outline"></ion-icon>
+              </ion-button>
+            </div>
+            <div class="item-price">Q{{ (item.product.price * item.quantity) | number:'1.2-2' }}</div>
+          </div>
+        </ion-item>
+        
+        <ion-item-options side="end">
+          <ion-item-option color="danger" (click)="removeFromOrder(i)">
+            <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+          </ion-item-option>
+        </ion-item-options>
+      </ion-item-sliding>
+    </ion-list>
+    
+    <div class="order-total">
+      <div class="total-label">Total</div>
+      <div class="total-amount">Q{{ getTotal() | number:'1.2-2' }}</div>
+    </div>
+  </div>
+</ion-content>
+
+<!-- Botón Flotante para Enviar Orden -->
+<ion-fab slot="fixed" vertical="bottom" horizontal="end" *ngIf="orderItems.length > 0">
+  <ion-fab-button color="success" (click)="sendOrder()" size="large">
+    <ion-icon name="send-outline"></ion-icon>
+  </ion-fab-button>
+</ion-fab>

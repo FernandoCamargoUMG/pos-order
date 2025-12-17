@@ -85,7 +85,8 @@ export class DatabaseService {
             console.log('Query:', query.substring(0, 100));
             const result = await this.db.query(query, values);
             console.log(`Query OK - ${result.values?.length || 0} filas`);
-            return result.values as T[];
+            console.log('Resultado completo:', result);
+            return (result.values || []) as T[];
         } catch (error) {
             console.error('Error ejecutando query:', error);
             throw error;

@@ -17,11 +17,48 @@
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
+  
+  <!-- Selector de Niveles -->
+  <ion-toolbar>
+    <ion-segment [(ngModel)]="selectedLevel" (ionChange)="onLevelChange($event)" value="1">
+      <ion-segment-button value="1">
+        <ion-label>NIVEL 1</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="2">
+        <ion-label>NIVEL 2</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
 </ion-header>
 
 <ion-content class="ion-padding">
-  <div class="coming-soon">
-    <h2>🍽️ Gestión de Mesas</h2>
-    <p>En desarrollo...</p>
-  </div>
+  <ion-grid>
+    <ion-row>
+      <ion-col size="12" size-md="6" size-lg="4" *ngFor="let table of filteredTables">
+        <ion-card 
+          [button]="true" 
+          (click)="onTableClick(table)"
+          [color]="getTableColor(table)"
+          class="table-card">
+          <ion-card-header>
+            <div class="table-header">
+              <ion-icon name="restaurant-outline" size="large"></ion-icon>
+              <ion-card-title>{{ table.name }}</ion-card-title>
+            </div>
+          </ion-card-header>
+          <ion-card-content>
+            <div class="table-info">
+              <ion-badge [color]="getTableColor(table)">
+                {{ getTableStatusText(table) }}
+              </ion-badge>
+              <p *ngIf="table.status === 'OCCUPIED'" class="order-time">
+                <ion-icon name="time-outline"></ion-icon>
+                Orden activa
+              </p>
+            </div>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
 </ion-content>

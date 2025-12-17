@@ -188,4 +188,17 @@ INSERT OR IGNORE INTO roles (id, name) VALUES (4, 'CAJERO');
 INSERT OR IGNORE INTO levels (id, name) VALUES (1, 'Planta Baja');
 INSERT OR IGNORE INTO levels (id, name) VALUES (2, 'Primer Piso');
 INSERT OR IGNORE INTO levels (id, name) VALUES (3, 'Terraza');
+
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (1, 1, 'Mesa 1', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (2, 1, 'Mesa 2', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (3, 1, 'Mesa 3', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (4, 1, 'Mesa 4', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (5, 1, 'Mesa 5', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (6, 1, 'Mesa 6', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (7, 1, 'Mesa 7', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (8, 2, 'Mesa 8', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (9, 2, 'Mesa 9', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (10, 2, 'Mesa 10', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (11, 2, 'Mesa 11', 'FREE');
+INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (12, 2, 'Mesa 12', 'FREE');
 `;

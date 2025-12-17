@@ -25,6 +25,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/tables/tables.page').then((m) => m.TablesPage),
   },
   {
+    path: 'order/:id',
+    loadComponent: () => import('./features/order/order.page').then((m) => m.OrderPage),
+  },
+  {
     path: 'kds',
     loadComponent: () => import('./features/kds/kds.page').then((m) => m.KdsPage),
   },

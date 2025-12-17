@@ -1,0 +1,63 @@
+<ion-header>
+    <ion-toolbar>
+        <ion-buttons slot="start">
+            <ion-button (click)="cancel()">
+                <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+            </ion-button>
+        </ion-buttons>
+        <ion-title>{{ product.name }}</ion-title>
+        <ion-buttons slot="end">
+            <ion-button (click)="confirm()" color="success">
+                <ion-icon slot="icon-only" name="checkmark-outline"></ion-icon>
+            </ion-button>
+        </ion-buttons>
+    </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+    <!-- Exclusiones -->
+    <div class="section">
+        <h3 class="section-title">Exclusiones</h3>
+        <ion-list>
+            <ion-item *ngFor="let exclusion of exclusions" lines="full">
+                <ion-checkbox slot="start" [(ngModel)]="exclusion.selected">
+                </ion-checkbox>
+                <ion-label>{{ exclusion.name }}</ion-label>
+            </ion-item>
+        </ion-list>
+    </div>
+
+    <!-- Términos de Cocción -->
+    <div class="section">
+        <h3 class="section-title">Término de Cocción</h3>
+        <ion-list>
+            <ion-item *ngFor="let term of cookingTerms" lines="full">
+                <ion-checkbox slot="start" [(ngModel)]="term.selected" (ngModelChange)="onCookingTermChange(term)">
+                </ion-checkbox>
+                <ion-label>{{ term.name }}</ion-label>
+            </ion-item>
+        </ion-list>
+    </div>
+
+    <!-- Notas Personalizadas -->
+    <div class="section">
+        <h3 class="section-title">Notas Personalizadas</h3>
+        <ion-item lines="none">
+            <ion-textarea [(ngModel)]="notes" placeholder="Ej: Extra queso, sin sal..." rows="4" autoGrow="true">
+            </ion-textarea>
+        </ion-item>
+    </div>
+</ion-content>
+
+<ion-footer>
+    <ion-toolbar>
+        <div class="footer-buttons">
+            <ion-button expand="block" size="large" (click)="cancel()" fill="outline" color="medium">
+                Cancelar
+            </ion-button>
+            <ion-button expand="block" size="large" (click)="confirm()" color="success">
+                Agregar a Orden
+            </ion-button>
+        </div>
+    </ion-toolbar>
+</ion-footer>
