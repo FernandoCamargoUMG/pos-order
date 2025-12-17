@@ -1,0 +1,155 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>Monster Burger</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <div class="login-container">
+    <div class="logo-container">
+      <h1>🍔</h1>
+      <h2>Bienvenido</h2>
+    </div>
+
+    <ion-card *ngIf="!showFirstTimeSetup">
+      <ion-card-header>
+        <ion-card-title>Iniciar Sesión</ion-card-title>
+      </ion-card-header>
+
+      <ion-card-content>
+        <ion-item>
+          <ion-label position="floating">Usuario</ion-label>
+          <ion-input
+            type="text"
+            [(ngModel)]="username"
+            [disabled]="loading"
+            autocomplete="username"
+          ></ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="floating">PIN</ion-label>
+          <ion-input
+            type="password"
+            [(ngModel)]="pin"
+            [disabled]="loading"
+            autocomplete="current-password"
+            inputmode="numeric"
+            maxlength="6"
+          ></ion-input>
+        </ion-item>
+
+        <ion-text color="danger" *ngIf="error">
+          <p class="error-message">{{ error }}</p>
+        </ion-text>
+
+        <ion-button
+          expand="block"
+          (click)="login()"
+          [disabled]="loading"
+          class="ion-margin-top"
+        >
+          <ion-spinner *ngIf="loading" name="crescent"></ion-spinner>
+          <span *ngIf="!loading">Ingresar</span>
+        </ion-button>
+
+        <ion-button
+          expand="block"
+          fill="clear"
+          size="small"
+          (click)="toggleFirstTimeSetup()"
+          [disabled]="loading"
+        >
+          Primera vez? Crear usuario
+        </ion-button>
+
+        <ion-button
+          expand="block"
+          fill="clear"
+          size="small"
+          color="medium"
+          (click)="goToDebug()"
+          [disabled]="loading"
+        >
+          🛠️ Ver Base de Datos
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+
+    <ion-card *ngIf="showFirstTimeSetup">
+      <ion-card-header>
+        <ion-card-title>Crear Primer Usuario</ion-card-title>
+      </ion-card-header>
+
+      <ion-card-content>
+        <ion-item>
+          <ion-label position="floating">Usuario</ion-label>
+          <ion-input
+            type="text"
+            [(ngModel)]="newUsername"
+            [disabled]="loading"
+          ></ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="floating">Rol</ion-label>
+          <ion-select
+            [(ngModel)]="selectedRole"
+            [disabled]="loading"
+            interface="action-sheet"
+          >
+            <ion-select-option *ngFor="let role of roles" [value]="role.id">
+              {{ role.name }}
+            </ion-select-option>
+          </ion-select>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="floating">PIN (4-6 dígitos)</ion-label>
+          <ion-input
+            type="password"
+            [(ngModel)]="newPin"
+            [disabled]="loading"
+            inputmode="numeric"
+            maxlength="6"
+          ></ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="floating">Confirmar PIN</ion-label>
+          <ion-input
+            type="password"
+            [(ngModel)]="newPinConfirm"
+            [disabled]="loading"
+            inputmode="numeric"
+            maxlength="6"
+          ></ion-input>
+        </ion-item>
+
+        <ion-text color="danger" *ngIf="error">
+          <p class="error-message">{{ error }}</p>
+        </ion-text>
+
+        <ion-button
+          expand="block"
+          (click)="createFirstUser()"
+          [disabled]="loading"
+          class="ion-margin-top"
+        >
+          <ion-spinner *ngIf="loading" name="crescent"></ion-spinner>
+          <span *ngIf="!loading">Crear Usuario</span>
+        </ion-button>
+
+        <ion-button
+          expand="block"
+          fill="clear"
+          size="small"
+          (click)="toggleFirstTimeSetup()"
+          [disabled]="loading"
+        >
+          Volver al login
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+  </div>
+</ion-content>

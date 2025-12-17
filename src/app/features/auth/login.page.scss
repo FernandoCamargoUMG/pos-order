@@ -1,0 +1,43 @@
+.login-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.logo-container {
+  text-align: center;
+  margin-bottom: 2rem;
+
+  h1 {
+    font-size: 5rem;
+    margin: 0;
+  }
+
+  h2 {
+    margin-top: 0.5rem;
+    color: var(--ion-color-primary);
+  }
+}
+
+ion-card {
+  width: 100%;
+  max-width: 400px;
+}
+
+ion-item {
+  margin-bottom: 1rem;
+}
+
+.error-message {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+ion-button {
+  margin-top: 0.5rem;
+}

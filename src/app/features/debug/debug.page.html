@@ -1,0 +1,73 @@
+<ion-header>
+  <ion-toolbar color="dark">
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>🛠️ Debug Database</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="loadData()">
+        <ion-icon name="refresh-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  
+  <ion-toolbar>
+    <ion-segment [(ngModel)]="selectedTable" (ionChange)="onTableChange($event)" scrollable>
+      <ion-segment-button *ngFor="let table of tables" [value]="table.value">
+        <ion-label>{{ table.label }}</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="loadData($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="debug-container ion-padding">
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          {{ selectedTable | titlecase }}
+          <ion-badge color="primary">{{ data.length }}</ion-badge>
+        </ion-card-title>
+      </ion-card-header>
+
+      <ion-card-content>
+        <div *ngIf="data.length === 0" class="empty-state">
+          <p>No hay registros en esta tabla</p>
+        </div>
+
+        <div *ngIf="data.length > 0" class="table-scroll">
+          <div *ngFor="let row of data; let i = index" class="data-row">
+            <div class="row-header">
+              <strong>Registro #{{ i + 1 }}</strong>
+            </div>
+            <ion-list>
+              <ion-item *ngFor="let col of columns" lines="none">
+                <ion-label>
+                  <p class="label-key">{{ col }}</p>
+                  <h3 class="label-value">{{ getDisplayValue(row[col]) }}</h3>
+                </ion-label>
+              </ion-item>
+            </ion-list>
+          </div>
+        </div>
+
+        <ion-button 
+          *ngIf="data.length > 0" 
+          expand="block" 
+          color="danger" 
+          fill="outline"
+          (click)="clearTable()"
+          class="ion-margin-top"
+        >
+          Vaciar Tabla
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+  </div>
+</ion-content>

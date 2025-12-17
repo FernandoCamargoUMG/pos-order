@@ -1,0 +1,45 @@
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import {
+  IonContent,
+  IonHeader,
+  IonTitle,
+  IonToolbar,
+  IonButton,
+  IonButtons,
+  IonIcon
+} from '@ionic/angular/standalone';
+import { Router } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
+import { addIcons } from 'ionicons';
+import { logOutOutline } from 'ionicons/icons';
+
+@Component({
+  selector: 'app-tables',
+  templateUrl: './tables.page.html',
+  styleUrls: ['./tables.page.scss'],
+  standalone: true,
+  imports: [
+    CommonModule,
+    IonContent,
+    IonHeader,
+    IonTitle,
+    IonToolbar,
+    IonButton,
+    IonButtons,
+    IonIcon
+  ]
+})
+export class TablesPage {
+  constructor(
+    private authService: AuthService,
+    private router: Router
+  ) {
+    addIcons({ logOutOutline });
+  }
+
+  async logout() {
+    await this.authService.logout();
+    this.router.navigate(['/login']);
+  }
+}

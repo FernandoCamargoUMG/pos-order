@@ -1,0 +1,49 @@
+.debug-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: var(--ion-color-medium);
+}
+
+.table-scroll {
+  max-height: calc(100vh - 350px);
+  overflow-y: auto;
+}
+
+.data-row {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--ion-color-light);
+  border-radius: 8px;
+  
+  .row-header {
+    margin-bottom: 0.5rem;
+    color: var(--ion-color-primary);
+  }
+}
+
+.label-key {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+  margin-bottom: 0.25rem;
+}
+
+.label-value {
+  font-size: 0.9rem;
+  color: var(--ion-color-dark);
+  word-break: break-all;
+  margin: 0;
+}
+
+ion-segment {
+  --background: var(--ion-color-light);
+}
+
+ion-badge {
+  margin-left: 0.5rem;
+}

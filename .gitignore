@@ -68,3 +68,16 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Database dumps and temp files
+/database-dumps/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+hamburger_schema.db*
+
+# Build outputs
+/www
+/platforms
+/plugins
