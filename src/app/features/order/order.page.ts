@@ -34,6 +34,7 @@ import {
   Platform
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
+import { OrderService } from '../../core/services/order.service';
 import {
   arrowBackOutline,
   addOutline,
@@ -113,6 +114,7 @@ export class OrderPage implements OnInit, OnDestroy {
     private router: Router,
     private productService: ProductService,
     private tableService: TableService,
+    private orderService: OrderService,
     private modalController: ModalController,
     private alertController: AlertController,
     private platform: Platform
@@ -282,6 +284,11 @@ export class OrderPage implements OnInit, OnDestroy {
 
     const { data, role } = await upsellingModal.onWillDismiss();
 
+    // Si canceló, no enviar la orden
+    if (role === 'cancel') {
+      return;
+    }
+
     // Si seleccionó una opción de upselling, agregarla a la orden
     if (role === 'selected' && data?.selected && data?.option) {
       // TODO: Agregar el producto de upselling a la orden
@@ -289,16 +296,30 @@ export class OrderPage implements OnInit, OnDestroy {
       // Por ahora solo continuar con el envío
     }
 
-    // Proceder a enviar la orden
+    // Proceder a enviar la orden (solo si confirmó o seleccionó algo)
     try {
-      // Generar ID de orden temporal
-      const orderId = `ORD-${Date.now()}`;
-      const deviceId = 'DEVICE-001'; // TODO: Obtener device ID real
+      // Generar ID de dispositivo (TODO: obtener del storage/settings)
+      const deviceId = 'DEVICE-001';
+
+      // Preparar items para guardar en BD
+      const orderItemsData = this.orderItems.map(item => ({
+        productId: item.product.id_local,
+        productName: item.product.name,
+        quantity: item.quantity,
+        price: item.product.price,
+        notes: item.notes,
+        modifiers: item.modifiers
+      }));
+
+      // Guardar orden en base de datos con todos sus items
+      const orderId = await this.orderService.createOrder(
+        this.tableId,
+        deviceId,
+        orderItemsData
+      );
 
       // Actualizar estado de mesa a OCCUPIED
       await this.tableService.assignOrderToTable(this.tableId, orderId, deviceId);
-
-      // TODO: Guardar orden en base de datos con los items
 
       const alert = await this.alertController.create({
         header: 'Orden enviada',

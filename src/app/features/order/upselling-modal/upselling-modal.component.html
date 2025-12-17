@@ -1,43 +1,43 @@
 <ion-header>
-  <ion-toolbar>
-    <ion-title>¿Quieres agregar algo más?</ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="skipUpselling()">
-        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
+    <ion-toolbar>
+        <ion-title>¿Quieres agregar algo más?</ion-title>
+        <ion-buttons slot="end">
+            <ion-button (click)="skipUpselling()">
+                <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+            </ion-button>
+        </ion-buttons>
+    </ion-toolbar>
 </ion-header>
 
 <ion-content class="ion-padding">
-  <div class="suggestion-header">
-    <h2>Completa tu orden</h2>
-    <p>Aprovecha estas ofertas especiales</p>
-  </div>
+    <div class="suggestion-header">
+        <h2>Completa tu orden</h2>
+        <p>Aprovecha estas ofertas especiales</p>
+    </div>
 
-  <div class="section">
-    <ion-list>
-      <ion-item *ngFor="let suggestion of suggestions" lines="full" (click)="selectOption(suggestion)" button>
-        <div class="suggestion-content">
-          <div class="suggestion-title">{{ suggestion.title }}</div>
-          <div class="suggestion-description">{{ suggestion.description }}</div>
-          <div class="suggestion-price">+Q{{ suggestion.price | number:'1.2-2' }}</div>
-        </div>
-        <ion-icon slot="end" name="add-circle" color="success"></ion-icon>
-      </ion-item>
-    </ion-list>
-  </div>
+    <div class="section">
+        <ion-list>
+            <ion-item *ngFor="let suggestion of suggestions" lines="full" (click)="selectOption(suggestion)" button>
+                <div class="suggestion-content">
+                    <div class="suggestion-title">{{ suggestion.title }}</div>
+                    <div class="suggestion-description">{{ suggestion.description }}</div>
+                    <div class="suggestion-price">+Q{{ suggestion.price | number:'1.2-2' }}</div>
+                </div>
+                <ion-icon slot="end" name="add-circle" color="success"></ion-icon>
+            </ion-item>
+        </ion-list>
+    </div>
 </ion-content>
 
 <ion-footer>
-  <ion-toolbar>
-    <div class="footer-buttons">
-      <ion-button expand="block" size="large" (click)="skipUpselling()" fill="outline" color="medium">
-        No, gracias
-      </ion-button>
-      <ion-button expand="block" size="large" (click)="skipUpselling()" color="success">
-        Enviar Orden
-      </ion-button>
-    </div>
-  </ion-toolbar>
+    <ion-toolbar>
+        <div class="footer-buttons">
+            <ion-button expand="block" size="large" (click)="skipUpselling()" fill="outline" color="medium">
+                No, gracias
+            </ion-button>
+            <ion-button expand="block" size="large" (click)="confirmOrder()" color="success">
+                Enviar Orden
+            </ion-button>
+        </div>
+    </ion-toolbar>
 </ion-footer>
