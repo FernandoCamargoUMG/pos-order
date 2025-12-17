@@ -1,0 +1,36 @@
+<ion-header>
+    <ion-toolbar color="primary">
+        <ion-title>Monsterburger</ion-title>
+        <ion-buttons slot="end">
+            <ion-button (click)="logout()">
+                <ion-icon slot="start" name="log-out-outline"></ion-icon>
+                Salir
+            </ion-button>
+        </ion-buttons>
+    </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+    <div class="welcome-section">
+        <h1>Panel de Administración</h1>
+        <p>Selecciona una opción para comenzar</p>
+    </div>
+
+    <ion-grid>
+        <ion-row>
+            <ion-col size="12" size-md="6" size-lg="4" *ngFor="let option of menuOptions">
+                <ion-card [button]="true" (click)="navigateTo(option.route)" class="menu-card">
+                    <ion-card-header>
+                        <div class="card-icon" [style.background-color]="'var(--ion-color-' + option.color + ')'">
+                            <ion-icon [name]="option.icon" size="large"></ion-icon>
+                        </div>
+                        <ion-card-title>{{ option.title }}</ion-card-title>
+                    </ion-card-header>
+                    <ion-card-content>
+                        {{ option.description }}
+                    </ion-card-content>
+                </ion-card>
+            </ion-col>
+        </ion-row>
+    </ion-grid>
+</ion-content>

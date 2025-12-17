@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { adminGuard, meseroGuard, cocinaGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
   {
@@ -9,6 +10,11 @@ export const routes: Routes = [
   {
     path: 'login',
     loadComponent: () => import('./features/auth/login.page').then((m) => m.LoginPage),
+  },
+  {
+    path: 'admin-menu',
+    loadComponent: () => import('./features/admin/admin-menu.page').then((m) => m.AdminMenuPage),
+    canActivate: [adminGuard]
   },
   {
     path: 'debug',
@@ -25,10 +31,12 @@ export const routes: Routes = [
   {
     path: 'products',
     loadComponent: () => import('./features/products/products.page').then((m) => m.ProductsPage),
+    canActivate: [adminGuard]
   },
   {
     path: 'products/form',
     loadComponent: () => import('./features/products/product-form.page').then((m) => m.ProductFormPage),
+    canActivate: [adminGuard]
   },
   {
     path: 'home',

@@ -84,7 +84,7 @@ export class LoginPage implements OnInit {
       
       // Redirigir según el rol
       if (user.role?.name === 'ADMINISTRADOR') {
-        this.router.navigate(['/products']);
+        this.router.navigate(['/admin-menu']);
       } else if (user.role?.name === 'MESERO') {
         this.router.navigate(['/tables']);
       } else if (user.role?.name === 'COCINA') {

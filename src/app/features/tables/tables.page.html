@@ -1,8 +1,13 @@
 <ion-header>
   <ion-toolbar color="primary">
+    <ion-buttons slot="start" *ngIf="isAdmin">
+      <ion-button routerLink="/admin-menu">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
     <ion-title>Mapa de Mesas</ion-title>
     <ion-buttons slot="end">
-      <ion-button routerLink="/products">
+      <ion-button routerLink="/products" *ngIf="isAdmin">
         <ion-icon slot="start" name="pricetag-outline"></ion-icon>
         Productos
       </ion-button>
