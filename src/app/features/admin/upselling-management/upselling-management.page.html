@@ -1,0 +1,44 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-button routerLink="/admin-menu">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Gestión de Upselling</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="openFormModal()">
+        <ion-icon slot="start" name="add-outline"></ion-icon>
+        Nueva Opción
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <ion-list *ngIf="options.length > 0">
+    <ion-item *ngFor="let option of options" lines="full">
+      <ion-label>
+        <h2>{{ option.title }}</h2>
+        <p>{{ option.description }}</p>
+        <p class="price">Q{{ option.price | number:'1.2-2' }} - {{ getTypeLabel(option.type) }}</p>
+      </ion-label>
+      <ion-toggle [(ngModel)]="option.active" (ionChange)="toggleActive(option, $event)"></ion-toggle>
+      <ion-button fill="clear" (click)="openFormModal(option)">
+        <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+      </ion-button>
+      <ion-button fill="clear" color="danger" (click)="deleteOption(option)">
+        <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+      </ion-button>
+    </ion-item>
+  </ion-list>
+
+  <div *ngIf="options.length === 0" class="empty-state">
+    <ion-icon name="bag-add-outline" size="large"></ion-icon>
+    <p>No hay opciones de upselling configuradas</p>
+    <ion-button (click)="openFormModal()" color="primary">
+      <ion-icon slot="start" name="add-outline"></ion-icon>
+      Crear Primera Opción
+    </ion-button>
+  </div>
+</ion-content>

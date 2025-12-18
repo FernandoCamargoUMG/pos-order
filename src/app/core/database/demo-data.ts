@@ -61,23 +61,13 @@ INSERT OR IGNORE INTO modifiers (id, name, type) VALUES
   (13, 'Bien Cocido', 'COOKING'),
   (14, 'Poco Cocido', 'COOKING');
 
--- Datos de prueba: Mesas
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES 
-  (1, 1, 'Mesa 1', 'FREE'),
-  (2, 1, 'Mesa 2', 'FREE'),
-  (3, 1, 'Mesa 3', 'FREE'),
-  (4, 1, 'Mesa 4', 'FREE'),
-  (5, 1, 'Mesa 5', 'FREE'),
-  (6, 1, 'Mesa 6', 'FREE'),
-  (7, 1, 'Barra 1', 'FREE'),
-  (8, 1, 'Barra 2', 'FREE'),
-  (9, 2, 'Mesa 7', 'FREE'),
-  (10, 2, 'Mesa 8', 'FREE'),
-  (11, 2, 'Mesa 9', 'FREE'),
-  (12, 2, 'Mesa 10', 'FREE'),
-  (13, 3, 'Terraza 1', 'FREE'),
-  (14, 3, 'Terraza 2', 'FREE'),
-  (15, 3, 'Terraza 3', 'FREE');
+-- Las mesas se crean manualmente desde la interfaz de administración
+
+-- Datos de prueba: Opciones de Upselling
+INSERT OR IGNORE INTO upselling_options (id, title, description, price, type, active, sort_order) VALUES 
+  (1, 'Convertir a Combo', 'Papas + Bebida', 15.00, 'combo', 1, 1),
+  (2, 'Agregar Solo Bebida', 'Soda, Agua o Refresco Natural', 8.00, 'bebida', 1, 2),
+  (3, 'Postre del Día', 'Pay de Manzana', 12.00, 'postre', 1, 3);
 
 -- Usuarios de prueba (SOLO PARA DESARROLLO)
 INSERT OR IGNORE INTO users (id_local, username, pin, role_id, device_id, active) VALUES 

@@ -25,9 +25,11 @@ export class DatabaseService {
         }
 
         try {
-            // Intentar copiar desde assets si existe
-            const result = await this.sqlite.copyFromAssets();
-            console.log('Copiado desde assets:', result);
+            console.log('Inicializando base de datos...');
+            
+            // NO copiar desde assets - siempre crear desde schema
+            // (comentado porque no hay DB precargada)
+            // const result = await this.sqlite.copyFromAssets();
 
             // Verificar si la conexión ya existe
             const isConnection = await this.sqlite.isConnection(DB_NAME, false);

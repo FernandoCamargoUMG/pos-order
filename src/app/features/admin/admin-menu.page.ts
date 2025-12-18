@@ -26,7 +26,8 @@ import {
   restaurantOutline,
   gridOutline,
   statsChartOutline,
-  settingsOutline
+  settingsOutline,
+  bagAddOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../core/services/auth.service';
 import { App } from '@capacitor/app';
@@ -63,6 +64,13 @@ export class AdminMenuPage implements OnInit, OnDestroy {
             color: 'primary',
             route: '/products',
             description: 'Gestionar menú y precios'
+        },
+        {
+            title: 'Upselling',
+            icon: 'bag-add-outline',
+            color: 'success',
+            route: '/upselling-management',
+            description: 'Gestionar ofertas y combos'
         },
         {
             title: 'Mesas',
@@ -113,7 +121,8 @@ export class AdminMenuPage implements OnInit, OnDestroy {
             restaurantOutline,
             gridOutline,
             statsChartOutline,
-            settingsOutline
+            settingsOutline,
+            bagAddOutline
         });
     }
 

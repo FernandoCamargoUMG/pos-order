@@ -43,6 +43,11 @@ export const routes: Routes = [
     canActivate: [adminGuard]
   },
   {
+    path: 'upselling-management',
+    loadComponent: () => import('./features/admin/upselling-management/upselling-management.page').then((m) => m.UpsellingManagementPage),
+    canActivate: [adminGuard]
+  },
+  {
     path: 'home',
     loadComponent: () => import('./home/home.page').then((m) => m.HomePage),
   },

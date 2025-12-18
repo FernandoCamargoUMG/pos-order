@@ -56,9 +56,20 @@
 
         <!-- Acciones -->
         <div class="order-actions">
+          <!-- Botón Editar (solo si está SENT) -->
           <ion-button 
             *ngIf="order.status === 'SENT'" 
-            (click)="markAsPaying(order)" 
+            (click)="editOrder(order); $event.stopPropagation()" 
+            expand="block" 
+            fill="outline"
+            color="primary">
+            <ion-icon slot="start" name="create-outline"></ion-icon>
+            Editar Orden
+          </ion-button>
+
+          <ion-button 
+            *ngIf="order.status === 'SENT'" 
+            (click)="markAsPaying(order); $event.stopPropagation()" 
             expand="block" 
             color="warning">
             <ion-icon slot="start" name="card-outline"></ion-icon>
@@ -67,7 +78,7 @@
           
           <ion-button 
             *ngIf="order.status === 'PAYING'" 
-            (click)="closeOrder(order)" 
+            (click)="closeOrder(order); $event.stopPropagation()" 
             expand="block" 
             color="success">
             <ion-icon slot="start" name="checkmark-outline"></ion-icon>

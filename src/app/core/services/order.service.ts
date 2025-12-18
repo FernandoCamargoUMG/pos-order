@@ -32,6 +32,64 @@ export class OrderService {
   constructor(private dbService: DatabaseService) {}
 
   /**
+   * Actualiza una orden existente: elimina items viejos y agrega nuevos
+   */
+  async updateOrder(
+    orderId: string,
+    items: Array<{
+      productId: string;
+      productName: string;
+      quantity: number;
+      price: number;
+      notes?: string;
+      modifiers?: string[];
+    }>
+  ): Promise<void> {
+    const db = this.dbService.getDB();
+
+    try {
+      // 1. Eliminar items viejos y sus modificadores
+      const deleteModifiers = `
+        DELETE FROM order_item_modifiers 
+        WHERE order_item_id IN (
+          SELECT id_local FROM order_items WHERE order_id = ?
+        )
+      `;
+      await db.run(deleteModifiers, [orderId]);
+
+      const deleteItems = `DELETE FROM order_items WHERE order_id = ?`;
+      await db.run(deleteItems, [orderId]);
+
+      // 2. Insertar nuevos items
+      for (const item of items) {
+        const itemId = `ITEM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        const itemInsert = `
+          INSERT INTO order_items (id_local, order_id, product_id, quantity, price, notes)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        await db.run(itemInsert, [itemId, orderId, item.productId, item.quantity, item.price, item.notes || null]);
+
+        // 3. Insertar modificadores del item (si existen)
+        if (item.modifiers && item.modifiers.length > 0) {
+          for (const modifier of item.modifiers) {
+            const modifierInsert = `
+              INSERT INTO order_item_modifiers (order_item_id, modifier)
+              VALUES (?, ?)
+            `;
+            await db.run(modifierInsert, [itemId, modifier]);
+          }
+        }
+      }
+
+      console.log(`✅ Orden ${orderId} actualizada con ${items.length} items`);
+    } catch (error) {
+      console.error('❌ Error actualizando orden:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Crea una nueva orden con sus items en la base de datos
    * Soporta múltiples órdenes por mesa (cuentas separadas)
    */

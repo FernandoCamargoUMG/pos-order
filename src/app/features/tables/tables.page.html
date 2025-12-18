@@ -7,6 +7,10 @@
     </ion-buttons>
     <ion-title>Mapa de Mesas</ion-title>
     <ion-buttons slot="end">
+      <ion-button (click)="openTableForm()" *ngIf="isAdmin">
+        <ion-icon slot="start" name="add-outline"></ion-icon>
+        Nueva Mesa
+      </ion-button>
       <ion-button routerLink="/products" *ngIf="isAdmin">
         <ion-icon slot="start" name="pricetag-outline"></ion-icon>
         Productos
@@ -36,17 +40,23 @@
     <ion-row>
       <ion-col size="12" size-md="6" size-lg="4" *ngFor="let table of filteredTables">
         <ion-card 
-          [button]="true" 
-          (click)="onTableClick(table)"
           [color]="getTableColor(table)"
           class="table-card">
           <ion-card-header>
             <div class="table-header">
               <ion-icon name="restaurant-outline" size="large"></ion-icon>
               <ion-card-title>{{ table.name }}</ion-card-title>
+              <div class="table-actions" *ngIf="isAdmin">
+                <ion-button fill="clear" size="small" (click)="openTableForm(table); $event.stopPropagation()">
+                  <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+                </ion-button>
+                <ion-button fill="clear" size="small" color="danger" (click)="deleteTable(table); $event.stopPropagation()">
+                  <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+                </ion-button>
+              </div>
             </div>
           </ion-card-header>
-          <ion-card-content>
+          <ion-card-content (click)="onTableClick(table)">
             <div class="table-info">
               <ion-badge [color]="getTableColor(table)">
                 {{ getTableStatusText(table) }}

@@ -1,0 +1,37 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>{{ table ? 'Editar Mesa' : 'Nueva Mesa' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="dismiss()">
+        <ion-icon name="close"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <ion-item>
+    <ion-label position="stacked">Nombre</ion-label>
+    <ion-input 
+      [(ngModel)]="name" 
+      placeholder="Ej: Mesa 1"
+      type="text">
+    </ion-input>
+  </ion-item>
+
+  <ion-item>
+    <ion-label position="stacked">Nivel</ion-label>
+    <ion-select [(ngModel)]="levelId">
+      <ion-select-option [value]="1">NIVEL 1</ion-select-option>
+      <ion-select-option [value]="2">NIVEL 2</ion-select-option>
+    </ion-select>
+  </ion-item>
+
+  <ion-button 
+    expand="block" 
+    (click)="save()" 
+    [disabled]="!name.trim()"
+    class="ion-margin-top">
+    {{ table ? 'Actualizar' : 'Crear' }}
+  </ion-button>
+</ion-content>

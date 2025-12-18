@@ -55,6 +55,19 @@ export interface Product {
   deleted_at?: string;
 }
 
+export type UpsellingType = 'combo' | 'bebida' | 'postre' | 'extra';
+
+export interface UpsellingOption {
+  id?: number;
+  title: string;
+  description?: string;
+  price: number;
+  type: UpsellingType;
+  active?: number;
+  sort_order?: number;
+  deleted_at?: string;
+}
+
 export type ModifierType = 'EXCLUDE' | 'EXTRA' | 'COOKING';
 
 export interface Modifier {

@@ -20,7 +20,9 @@ import {
   IonCardTitle,
   IonCardContent,
   IonBadge,
-  Platform
+  Platform,
+  ModalController,
+  AlertController
 } from '@ionic/angular/standalone';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
@@ -28,8 +30,9 @@ import { TableService } from '../../core/services/table.service';
 import { OrderService } from '../../core/services/order.service';
 import { Table } from '../../core/models';
 import { addIcons } from 'ionicons';
-import { logOutOutline, pricetagOutline, arrowBackOutline, restaurantOutline, addOutline, timeOutline, receiptOutline } from 'ionicons/icons';
+import { logOutOutline, pricetagOutline, arrowBackOutline, restaurantOutline, addOutline, timeOutline, receiptOutline, createOutline, trashOutline } from 'ionicons/icons';
 import { App } from '@capacitor/app';
+import { TableFormModalComponent } from './table-form-modal/table-form-modal.component';
 
 @Component({
   selector: 'app-tables',
@@ -70,11 +73,13 @@ export class TablesPage implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private tableService: TableService,
+    private modalCtrl: ModalController,
+    private alertCtrl: AlertController,
     private orderService: OrderService,
     private router: Router,
     private platform: Platform
   ) {
-    addIcons({ logOutOutline, pricetagOutline, arrowBackOutline, restaurantOutline, addOutline, timeOutline, receiptOutline });
+    addIcons({ logOutOutline, pricetagOutline, arrowBackOutline, restaurantOutline, addOutline, timeOutline, receiptOutline, createOutline, trashOutline });
     
     // Verificar si el usuario es administrador
     this.authService.currentUser$.subscribe(user => {
@@ -99,10 +104,32 @@ export class TablesPage implements OnInit, OnDestroy {
   async loadTables() {
     this.tables = await this.tableService.getAllTables();
     
-    // Cargar cantidad de órdenes activas por mesa
+    // Actualizar estados de mesa basándose en órdenes activas
     for (const table of this.tables) {
+      // Obtener órdenes activas (no CLOSED)
       const orders = await this.orderService.getOrdersByTable(table.id);
-      this.tableOrderCounts.set(table.id, orders.length);
+      const activeOrders = orders.filter(order => order.status !== 'CLOSED');
+      this.tableOrderCounts.set(table.id, activeOrders.length);
+      
+      // Actualizar estado de mesa según órdenes activas
+      if (activeOrders.length === 0) {
+        // Sin órdenes activas → FREE
+        if (table.status !== 'FREE') {
+          await this.tableService.releaseTable(table.id);
+          table.status = 'FREE';
+        }
+      } else {
+        // Verificar si alguna orden está en PAYING
+        const hasPayingOrder = activeOrders.some(order => order.status === 'PAYING');
+        
+        if (hasPayingOrder && table.status !== 'PAYING') {
+          await this.tableService.setTablePaying(table.id);
+          table.status = 'PAYING';
+        } else if (!hasPayingOrder && table.status !== 'OCCUPIED') {
+          await this.tableService.updateTableStatus(table.id, 'OCCUPIED');
+          table.status = 'OCCUPIED';
+        }
+      }
     }
     
     this.filterTablesByLevel();
@@ -137,6 +164,49 @@ export class TablesPage implements OnInit, OnDestroy {
     return this.tableOrderCounts.get(tableId) || 0;
   }
 
+  async openTableForm(table?: Table) {
+    const modal = await this.modalCtrl.create({
+      component: TableFormModalComponent,
+      componentProps: { table }
+    });
+
+    await modal.present();
+    const { data } = await modal.onWillDismiss();
+    
+    if (data?.saved) {
+      await this.loadTables();
+    }
+  }
+
+  async deleteTable(table: Table) {
+    if (table.status !== 'FREE') {
+      const alert = await this.alertCtrl.create({
+        header: 'No se puede eliminar',
+        message: 'Solo se pueden eliminar mesas libres.',
+        buttons: ['OK']
+      });
+      await alert.present();
+      return;
+    }
+
+    const alert = await this.alertCtrl.create({
+      header: 'Confirmar eliminación',
+      message: `¿Estás seguro de eliminar "${table.name}"?`,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Eliminar',
+          role: 'destructive',
+          handler: async () => {
+            await this.tableService.deleteTable(table.id);
+            await this.loadTables();
+          }
+        }
+      ]
+    });
+    await alert.present();
+  }
+
   async onTableClick(table: Table) {
     if (table.status === 'FREE') {
       // Crear nueva orden para mesa libre
@@ -145,8 +215,8 @@ export class TablesPage implements OnInit, OnDestroy {
       // Continuar orden existente
       this.router.navigate(['/order', table.id]);
     } else if (table.status === 'PAYING') {
-      // Ver cuenta/imprimir
-      // TODO: Implementar vista de pago
+      // Permitir entrar para ver cuentas y cerrarlas
+      this.router.navigate(['/order', table.id]);
     }
   }
 

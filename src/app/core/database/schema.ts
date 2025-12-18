@@ -139,6 +139,17 @@ CREATE TABLE IF NOT EXISTS sync_queue (
   created_at DATETIME
 );
 
+CREATE TABLE IF NOT EXISTS upselling_options (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  description TEXT,
+  price REAL NOT NULL,
+  type TEXT CHECK(type IN ('combo','bebida','postre','extra')),
+  active INTEGER DEFAULT 1,
+  sort_order INTEGER DEFAULT 0,
+  deleted_at DATETIME
+);
+
 CREATE INDEX IF NOT EXISTS idx_devices_device_id ON devices(device_id);
 CREATE INDEX IF NOT EXISTS idx_devices_active ON devices(active);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
@@ -177,6 +188,10 @@ CREATE INDEX IF NOT EXISTS idx_kds_status ON kds_tickets(status);
 CREATE INDEX IF NOT EXISTS idx_sync_entity ON sync_queue(entity);
 CREATE INDEX IF NOT EXISTS idx_sync_entity_id ON sync_queue(entity_id);
 CREATE INDEX IF NOT EXISTS idx_sync_created_at ON sync_queue(created_at);
+CREATE INDEX IF NOT EXISTS idx_upselling_active ON upselling_options(active);
+CREATE INDEX IF NOT EXISTS idx_upselling_type ON upselling_options(type);
+CREATE INDEX IF NOT EXISTS idx_upselling_sort ON upselling_options(sort_order);
+CREATE INDEX IF NOT EXISTS idx_upselling_deleted_at ON upselling_options(deleted_at);
 `;
 
 export const INITIAL_DATA = `
@@ -189,16 +204,5 @@ INSERT OR IGNORE INTO levels (id, name) VALUES (1, 'Planta Baja');
 INSERT OR IGNORE INTO levels (id, name) VALUES (2, 'Primer Piso');
 INSERT OR IGNORE INTO levels (id, name) VALUES (3, 'Terraza');
 
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (1, 1, 'Mesa 1', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (2, 1, 'Mesa 2', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (3, 1, 'Mesa 3', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (4, 1, 'Mesa 4', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (5, 1, 'Mesa 5', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (6, 1, 'Mesa 6', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (7, 1, 'Mesa 7', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (8, 2, 'Mesa 8', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (9, 2, 'Mesa 9', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (10, 2, 'Mesa 10', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (11, 2, 'Mesa 11', 'FREE');
-INSERT OR IGNORE INTO tables (id, level_id, name, status) VALUES (12, 2, 'Mesa 12', 'FREE');
+-- Las mesas se insertan en demo-data.ts para permitir actualizaciones fáciles
 `;

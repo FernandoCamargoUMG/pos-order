@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
     IonHeader,
@@ -15,13 +15,8 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline, addOutline } from 'ionicons/icons';
-
-interface UpsellingOption {
-    title: string;
-    description: string;
-    price: number;
-    type: 'combo' | 'bebida' | 'postre';
-}
+import { UpsellingService } from '../../../core/services/upselling.service';
+import { UpsellingOption } from '../../../core/models';
 
 @Component({
     selector: 'app-upselling-modal',
@@ -42,32 +37,24 @@ interface UpsellingOption {
         IonFooter
     ]
 })
-export class UpsellingModalComponent {
+export class UpsellingModalComponent implements OnInit {
     @Input() orderTotal: number = 0;
 
-    suggestions: UpsellingOption[] = [
-        {
-            title: 'Convertir a Combo',
-            description: 'Papas + Bebida',
-            price: 15.00,
-            type: 'combo'
-        },
-        {
-            title: 'Agregar Solo Bebida',
-            description: 'Soda, Agua o Refresco Natural',
-            price: 8.00,
-            type: 'bebida'
-        },
-        {
-            title: 'Postre del Día',
-            description: 'Pay de Manzana',
-            price: 12.00,
-            type: 'postre'
-        }
-    ];
+    suggestions: UpsellingOption[] = [];
 
-    constructor(private modalController: ModalController) {
+    constructor(
+        private modalController: ModalController,
+        private upsellingService: UpsellingService
+    ) {
         addIcons({ closeOutline, addOutline });
+    }
+
+    async ngOnInit() {
+        await this.loadSuggestions();
+    }
+
+    async loadSuggestions() {
+        this.suggestions = await this.upsellingService.getAllOptions();
     }
 
     selectOption(option: UpsellingOption) {

@@ -164,13 +164,12 @@
       <div class="total-label">Total</div>
       <div class="total-amount">Q{{ getTotal() | number:'1.2-2' }}</div>
     </div>
+
+    <!-- Botón de Enviar integrado -->
+    <ion-button expand="block" color="success" size="large" (click)="sendOrder()" class="send-button">
+      <ion-icon slot="start" name="send-outline"></ion-icon>
+      {{ editingOrderId ? 'Actualizar Orden' : 'Enviar Orden' }}
+    </ion-button>
   </div>
   </ng-container>
 </ion-content>
-
-<!-- Botón Flotante para Enviar Orden -->
-<ion-fab slot="fixed" vertical="bottom" horizontal="end" *ngIf="orderItems.length > 0 && !showAccountsView">
-  <ion-fab-button color="success" (click)="sendOrder()" size="large">
-    <ion-icon name="send-outline"></ion-icon>
-  </ion-fab-button>
-</ion-fab>

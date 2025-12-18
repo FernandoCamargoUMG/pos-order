@@ -1,24 +1,36 @@
 .table-card {
   margin: 8px 0;
-  cursor: pointer;
   transition: transform 0.2s;
-  
-  &:hover {
-    transform: scale(1.02);
-  }
-  
-  &:active {
-    transform: scale(0.98);
+
+  ion-card-content {
+    cursor: pointer;
+    
+    &:hover {
+      opacity: 0.9;
+    }
   }
 }
 
 .table-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
+  width: 100%;
   
   ion-icon {
     color: var(--ion-color-primary-contrast);
+  }
+
+  .table-actions {
+    display: flex;
+    gap: 4px;
+
+    ion-button {
+      --padding-start: 8px;
+      --padding-end: 8px;
+      height: 32px;
+    }
   }
 }
 

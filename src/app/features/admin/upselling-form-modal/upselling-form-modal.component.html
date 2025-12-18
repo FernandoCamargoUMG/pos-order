@@ -1,0 +1,59 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>{{ option ? 'Editar Opción' : 'Nueva Opción de Upselling' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="dismiss()">
+        <ion-icon name="close"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <ion-item>
+    <ion-label position="stacked">Título *</ion-label>
+    <ion-input 
+      [(ngModel)]="title" 
+      placeholder="Ej: Convertir a Combo"
+      type="text">
+    </ion-input>
+  </ion-item>
+
+  <ion-item>
+    <ion-label position="stacked">Descripción</ion-label>
+    <ion-textarea 
+      [(ngModel)]="description" 
+      placeholder="Ej: Papas + Bebida"
+      rows="3">
+    </ion-textarea>
+  </ion-item>
+
+  <ion-item>
+    <ion-label position="stacked">Precio (Q) *</ion-label>
+    <ion-input 
+      [(ngModel)]="price" 
+      placeholder="0.00"
+      type="number"
+      step="0.01"
+      min="0">
+    </ion-input>
+  </ion-item>
+
+  <ion-item>
+    <ion-label position="stacked">Tipo *</ion-label>
+    <ion-select [(ngModel)]="type">
+      <ion-select-option value="combo">Combo</ion-select-option>
+      <ion-select-option value="bebida">Bebida</ion-select-option>
+      <ion-select-option value="postre">Postre</ion-select-option>
+      <ion-select-option value="extra">Extra</ion-select-option>
+    </ion-select>
+  </ion-item>
+
+  <ion-button 
+    expand="block" 
+    (click)="save()" 
+    [disabled]="!title.trim() || price <= 0"
+    class="ion-margin-top">
+    {{ option ? 'Actualizar' : 'Crear' }}
+  </ion-button>
+</ion-content>

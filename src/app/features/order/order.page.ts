@@ -29,8 +29,10 @@ import {
   IonItemSliding,
   IonItemOptions,
   IonItemOption,
+  IonToast,
   ModalController,
   AlertController,
+  ToastController,
   Platform
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -113,6 +115,7 @@ export class OrderPage implements OnInit, OnDestroy {
   // Para gestión de cuentas
   showAccountsView: boolean = false;
   existingOrders: any[] = [];
+  editingOrderId: string | null = null; // ID de la orden que se está editando
   
   constructor(
     private route: ActivatedRoute,
@@ -122,6 +125,7 @@ export class OrderPage implements OnInit, OnDestroy {
     private orderService: OrderService,
     private modalController: ModalController,
     private alertController: AlertController,
+    private toastController: ToastController,
     private platform: Platform
   ) {
     addIcons({
@@ -169,8 +173,8 @@ export class OrderPage implements OnInit, OnDestroy {
       await this.loadProducts();
       await this.loadCategories();
       
-      // Si la mesa está ocupada, mostrar vista de cuentas primero
-      if (this.table?.status === 'OCCUPIED') {
+      // Si la mesa está ocupada o pagando, mostrar vista de cuentas primero
+      if (this.table?.status === 'OCCUPIED' || this.table?.status === 'PAYING') {
         await this.loadExistingOrders();
         this.showAccountsView = true;
       }
@@ -194,12 +198,33 @@ export class OrderPage implements OnInit, OnDestroy {
   }
 
   startNewAccount() {
+    // Crear nueva cuenta: limpiar items y mostrar productos
     this.showAccountsView = false;
     this.orderItems = [];
   }
 
-  continueOrdering() {
-    this.showAccountsView = false;
+  async continueOrdering() {
+    // Ver productos ordenados: abrir modal con todas las cuentas
+    const modal = await this.modalController.create({
+      component: SplitCheckModalComponent,
+      componentProps: {
+        tableId: this.tableId,
+        tableName: this.table?.name || `Mesa ${this.tableId}`,
+        expandAll: true // Expandir todas las cuentas automáticamente
+      }
+    });
+
+    await modal.present();
+    
+    const { data, role } = await modal.onWillDismiss();
+    
+    // Si seleccionaron editar una orden, cargarla
+    if (role === 'edit' && data?.order) {
+      await this.loadOrderForEditing(data.order);
+    }
+    
+    // Recargar órdenes después de cerrar el modal
+    await this.loadExistingOrders();
   }
 
   async viewAccount(order: any) {
@@ -217,8 +242,50 @@ export class OrderPage implements OnInit, OnDestroy {
     
     const { data, role } = await modal.onWillDismiss();
     
+    // Si seleccionaron editar una orden, cargarla
+    if (role === 'edit' && data?.order) {
+      await this.loadOrderForEditing(data.order);
+    }
+    
     // Recargar órdenes después de cerrar el modal
     await this.loadExistingOrders();
+  }
+
+  async loadOrderForEditing(order: any) {
+    // Cargar items de la orden para editar
+    this.editingOrderId = order.id_local;
+    this.showAccountsView = false;
+    
+    // Cargar items de la orden
+    const items = await this.orderService.getOrderItems(order.id_local);
+    
+    // Convertir items de BD a formato del carrito (con objeto product completo)
+    this.orderItems = await Promise.all(items.map(async (item: any) => {
+      // Buscar el producto para tener el objeto completo
+      const product = this.products.find(p => p.id_local === item.product_id);
+      
+      return {
+        product: product || {
+          id_local: item.product_id,
+          name: item.product_name,
+          price: item.price,
+          category: '',
+          available: true
+        } as Product,
+        quantity: item.quantity,
+        notes: item.notes || '',
+        modifiers: item.modifiers || []
+      };
+    }));
+
+    // Mostrar toast informativo
+    const toast = await this.toastController.create({
+      message: `Editando orden #${order.id_local.slice(-6)}. Puedes agregar/eliminar items.`,
+      duration: 3000,
+      position: 'top',
+      color: 'primary'
+    });
+    await toast.present();
   }
 
   getOrderStatusText(status: string): string {
@@ -359,28 +426,30 @@ export class OrderPage implements OnInit, OnDestroy {
       return;
     }
 
-    // Mostrar modal de upselling antes de enviar
-    const upsellingModal = await this.modalController.create({
-      component: UpsellingModalComponent,
-      componentProps: {
-        orderTotal: this.getTotal()
+    // Mostrar modal de upselling antes de enviar (solo si NO estamos editando)
+    if (!this.editingOrderId) {
+      const upsellingModal = await this.modalController.create({
+        component: UpsellingModalComponent,
+        componentProps: {
+          orderTotal: this.getTotal()
+        }
+      });
+
+      await upsellingModal.present();
+
+      const { data, role } = await upsellingModal.onWillDismiss();
+
+      // Si canceló, no enviar la orden
+      if (role === 'cancel') {
+        return;
       }
-    });
 
-    await upsellingModal.present();
-
-    const { data, role } = await upsellingModal.onWillDismiss();
-
-    // Si canceló, no enviar la orden
-    if (role === 'cancel') {
-      return;
-    }
-
-    // Si seleccionó una opción de upselling, agregarla a la orden
-    if (role === 'selected' && data?.selected && data?.option) {
-      // TODO: Agregar el producto de upselling a la orden
-      console.log('Upselling seleccionado:', data.option);
-      // Por ahora solo continuar con el envío
+      // Si seleccionó una opción de upselling, agregarla a la orden
+      if (role === 'selected' && data?.selected && data?.option) {
+        // TODO: Agregar el producto de upselling a la orden
+        console.log('Upselling seleccionado:', data.option);
+        // Por ahora solo continuar con el envío
+      }
     }
 
     // Proceder a enviar la orden (solo si confirmó o seleccionó algo)
@@ -398,32 +467,50 @@ export class OrderPage implements OnInit, OnDestroy {
         modifiers: item.modifiers
       }));
 
-      // Guardar orden en base de datos con todos sus items
-      const orderId = await this.orderService.createOrder(
-        this.tableId,
-        deviceId,
-        orderItemsData
-      );
+      let orderId: string;
+      let isUpdate = false;
 
-      // Actualizar estado de mesa a OCCUPIED
-      await this.tableService.assignOrderToTable(this.tableId, orderId, deviceId);
+      // Si estamos editando, actualizar; si no, crear nueva
+      if (this.editingOrderId) {
+        await this.orderService.updateOrder(this.editingOrderId, orderItemsData);
+        orderId = this.editingOrderId;
+        isUpdate = true;
+      } else {
+        // Guardar orden en base de datos con todos sus items
+        orderId = await this.orderService.createOrder(
+          this.tableId,
+          deviceId,
+          orderItemsData
+        );
+
+        // Actualizar estado de mesa a OCCUPIED
+        await this.tableService.assignOrderToTable(this.tableId, orderId, deviceId);
+      }
 
       const alert = await this.alertController.create({
-        header: 'Orden enviada',
-        message: 'La orden ha sido enviada a cocina correctamente.',
+        header: isUpdate ? 'Orden actualizada' : 'Orden enviada',
+        message: isUpdate ? 'La orden ha sido actualizada correctamente.' : 'La orden ha sido enviada a cocina correctamente.',
         buttons: [{
           text: 'OK',
           handler: () => {
-            this.goBack();
+            // Limpiar edición y volver
+            this.editingOrderId = null;
+            this.orderItems = [];
+            if (!this.showAccountsView) {
+              this.goBack();
+            } else {
+              // Recargar vista de cuentas
+              this.loadExistingOrders();
+            }
           }
         }]
       });
       await alert.present();
     } catch (error) {
-      console.error('Error al enviar orden:', error);
+      console.error('Error al enviar/actualizar orden:', error);
       const alert = await this.alertController.create({
         header: 'Error',
-        message: 'No se pudo enviar la orden. Intenta de nuevo.',
+        message: this.editingOrderId ? 'No se pudo actualizar la orden. Intenta de nuevo.' : 'No se pudo enviar la orden. Intenta de nuevo.',
         buttons: ['OK']
       });
       await alert.present();

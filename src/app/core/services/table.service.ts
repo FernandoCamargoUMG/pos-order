@@ -69,6 +69,29 @@ export class TableService {
     );
   }
 
+  async createTable(levelId: number, name: string): Promise<void> {
+    await this.dbService.run(
+      `INSERT INTO tables (level_id, name, status, updated_at) 
+       VALUES (?, ?, 'FREE', datetime('now'))`,
+      [levelId, name]
+    );
+  }
+
+  async updateTable(id: number, levelId: number, name: string): Promise<void> {
+    await this.dbService.run(
+      'UPDATE tables SET level_id = ?, name = ?, updated_at = datetime(\'now\') WHERE id = ?',
+      [levelId, name, id]
+    );
+  }
+
+  async deleteTable(id: number): Promise<void> {
+    // Soft delete
+    await this.dbService.run(
+      'UPDATE tables SET deleted_at = datetime(\'now\') WHERE id = ?',
+      [id]
+    );
+  }
+
   getTableStatusColor(status: TableStatus): string {
     switch (status) {
       case 'FREE':
