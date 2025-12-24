@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { adminGuard, meseroGuard, cocinaGuard } from './core/guards/role.guard';
+import { adminGuard, meseroGuard, cocinaGuard, authGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
   {
@@ -19,33 +19,42 @@ export const routes: Routes = [
   {
     path: 'debug',
     loadComponent: () => import('./features/debug/debug.page').then((m) => m.DebugPage),
+    canActivate: [adminGuard]  // Solo admin puede acceder al debug
   },
   {
     path: 'tables',
     loadComponent: () => import('./features/tables/tables.page').then((m) => m.TablesPage),
+    canActivate: [authGuard]  // Cualquier usuario autenticado
   },
   {
     path: 'order/:id',
     loadComponent: () => import('./features/order/order.page').then((m) => m.OrderPage),
+    canActivate: [authGuard]  // Meseros y admin pueden tomar órdenes
   },
   {
     path: 'kds',
     loadComponent: () => import('./features/kds/kds.page').then((m) => m.KdsPage),
+    canActivate: [cocinaGuard]  // Solo cocina y admin pueden ver KDS
   },
   {
     path: 'products',
     loadComponent: () => import('./features/products/products.page').then((m) => m.ProductsPage),
-    canActivate: [adminGuard]
+    canActivate: [adminGuard]  // Solo admin
   },
   {
     path: 'products/form',
     loadComponent: () => import('./features/products/product-form.page').then((m) => m.ProductFormPage),
-    canActivate: [adminGuard]
+    canActivate: [adminGuard]  // Solo admin
   },
   {
     path: 'upselling-management',
     loadComponent: () => import('./features/admin/upselling-management/upselling-management.page').then((m) => m.UpsellingManagementPage),
-    canActivate: [adminGuard]
+    canActivate: [adminGuard]  // Solo admin
+  },
+  {
+    path: 'modifiers-management',
+    loadComponent: () => import('./features/admin/modifiers-management/modifiers-management.page').then((m) => m.ModifiersManagementPage),
+    canActivate: [adminGuard]  // Solo admin
   },
   {
     path: 'home',

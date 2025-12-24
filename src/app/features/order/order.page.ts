@@ -93,8 +93,6 @@ interface OrderItem {
     IonCardTitle,
     IonCardContent,
     IonBadge,
-    IonFab,
-    IonFabButton,
     IonList,
     IonItem,
     IonItemSliding,
@@ -486,6 +484,10 @@ export class OrderPage implements OnInit, OnDestroy {
         // Actualizar estado de mesa a OCCUPIED
         await this.tableService.assignOrderToTable(this.tableId, orderId, deviceId);
       }
+
+      // IMPORTANTE: Marcar orden como SENT para que cocina la vea en KDS
+      // Esto actualiza el status y el campo updated_at con la hora actual
+      await this.orderService.updateOrderStatus(orderId, 'SENT');
 
       const alert = await this.alertController.create({
         header: isUpdate ? 'Orden actualizada' : 'Orden enviada',

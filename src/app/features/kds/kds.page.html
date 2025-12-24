@@ -1,15 +1,19 @@
-<ion-header>
-    <ion-toolbar color="primary">
+<ion-header class="ion-no-border">
+    <ion-toolbar color="dark">
         <ion-buttons slot="start" *ngIf="isAdmin">
             <ion-button routerLink="/admin-menu">
                 <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
             </ion-button>
         </ion-buttons>
-        <ion-title>Eliburger Monster Burger</ion-title>
+        <ion-title>
+            <div class="header-title">
+                <ion-icon name="restaurant-outline"></ion-icon>
+                <span>Pantalla de Cocina</span>
+            </div>
+        </ion-title>
         <ion-buttons slot="end">
-            <ion-button routerLink="/products" *ngIf="isAdmin">
-                <ion-icon slot="start" name="pricetag-outline"></ion-icon>
-                Productos
+            <ion-button (click)="loadOrders()">
+                <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
             </ion-button>
             <ion-button (click)="logout()">
                 <ion-icon slot="start" name="log-out-outline"></ion-icon>
@@ -17,11 +21,163 @@
             </ion-button>
         </ion-buttons>
     </ion-toolbar>
+    
+    <!-- Filtros -->
+    <ion-toolbar color="dark">
+        <ion-segment [(ngModel)]="selectedView" (ionChange)="onViewChange($event)" value="all">
+            <ion-segment-button value="all">
+                <ion-label>
+                    Todas
+                    <ion-badge color="primary">{{ orders.length }}</ion-badge>
+                </ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="pending">
+                <ion-label>
+                    Pendientes
+                    <ion-badge color="light">{{ getPendingCount() }}</ion-badge>
+                </ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="preparing">
+                <ion-label>
+                    En Preparación
+                    <ion-badge color="warning">{{ getPreparingCount() }}</ion-badge>
+                </ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="history">
+                <ion-label>
+                    Historial
+                    <ion-badge color="success">{{ finishedOrders.length }}</ion-badge>
+                </ion-label>
+            </ion-segment-button>
+        </ion-segment>
+    </ion-toolbar>
 </ion-header>
 
-<ion-content class="ion-padding">
-    <div class="coming-soon">
-        <h2>👨‍🍳 Pantalla de Cocina</h2>
-        <p>En desarrollo...</p>
+<ion-content>
+    <ion-refresher slot="fixed" (ionRefresh)="onRefresh($event)">
+        <ion-refresher-content></ion-refresher-content>
+    </ion-refresher>
+
+    <!-- Vista de Historial -->
+    <div *ngIf="selectedView === 'history'" class="orders-container">
+        <div *ngIf="finishedOrders.length === 0" class="empty-state">
+            <ion-icon name="list-outline"></ion-icon>
+            <h2>No hay órdenes finalizadas</h2>
+            <p>Las órdenes completadas aparecerán aquí</p>
+        </div>
+
+        <ion-grid *ngIf="finishedOrders.length > 0">
+            <ion-row>
+                <ion-col size="12" size-md="6" size-lg="4" *ngFor="let order of finishedOrders">
+                    <ion-card class="order-card history-card">
+                        <ion-card-header>
+                            <div class="order-header">
+                                <div class="order-title">
+                                    <ion-icon name="restaurant-outline"></ion-icon>
+                                    <ion-card-title>{{ order.table_name }}</ion-card-title>
+                                </div>
+                                <ion-badge color="success">Completada</ion-badge>
+                            </div>
+                        </ion-card-header>
+                        <ion-card-content>
+                            <ion-list class="items-list">
+                                <ion-item *ngFor="let item of order.items" lines="none">
+                                    <ion-label>
+                                        <h3>{{ item.quantity }}x {{ item.product_name }}</h3>
+                                        <p *ngIf="item.modifiers?.length > 0" class="modifiers">
+                                            {{ item.modifiers.join(', ') }}
+                                        </p>
+                                        <p *ngIf="item.notes" class="notes">📝 {{ item.notes }}</p>
+                                    </ion-label>
+                                </ion-item>
+                            </ion-list>
+                            <div class="order-actions">
+                                <ion-button expand="block" color="primary" (click)="recoverOrder(order)">
+                                    <ion-icon slot="start" name="arrow-undo-outline"></ion-icon>
+                                    Recuperar
+                                </ion-button>
+                            </div>
+                        </ion-card-content>
+                    </ion-card>
+                </ion-col>
+            </ion-row>
+        </ion-grid>
+    </div>
+
+    <!-- Vista Principal de Órdenes -->
+    <div *ngIf="selectedView !== 'history'" class="orders-container">
+        <div *ngIf="filteredOrders.length === 0" class="empty-state">
+            <ion-icon name="restaurant-outline"></ion-icon>
+            <h2>No hay órdenes {{ selectedView === 'pending' ? 'pendientes' : selectedView === 'preparing' ? 'en preparación' : '' }}</h2>
+            <p>Las nuevas órdenes aparecerán aquí automáticamente</p>
+        </div>
+
+        <ion-grid *ngIf="filteredOrders.length > 0">
+            <ion-row>
+                <ion-col size="12" size-md="6" size-lg="4" *ngFor="let order of filteredOrders">
+                    <ion-card 
+                        class="order-card"
+                        [ngClass]="getPriorityClass(order.priority)">
+                        <ion-card-header>
+                            <div class="order-header">
+                                <div class="order-title">
+                                    <ion-icon name="restaurant-outline"></ion-icon>
+                                    <ion-card-title>{{ order.table_name }}</ion-card-title>
+                                </div>
+                                <ion-badge [color]="getPriorityColor(order.priority)">
+                                    <ion-icon name="time-outline"></ion-icon>
+                                    {{ order.elapsed_minutes }} min
+                                </ion-badge>
+                            </div>
+                            <div class="order-meta">
+                                <span class="order-time">{{ order.sent_at | date:'shortTime' }}</span>
+                                <ion-badge [color]="order.kitchen_status === 'preparing' ? 'warning' : 'light'">
+                                    {{ getKitchenStatusText(order.kitchen_status) }}
+                                </ion-badge>
+                            </div>
+                        </ion-card-header>
+                        
+                        <ion-card-content>
+                            <!-- Items de la orden -->
+                            <ion-list class="items-list">
+                                <ion-item *ngFor="let item of order.items" lines="none">
+                                    <ion-label>
+                                        <h3 class="item-name">{{ item.quantity }}x {{ item.product_name }}</h3>
+                                        <p *ngIf="item.modifiers?.length > 0" class="modifiers">
+                                            {{ item.modifiers.join(', ') }}
+                                        </p>
+                                        <p *ngIf="item.notes" class="notes">
+                                            <ion-icon name="document-text-outline"></ion-icon>
+                                            {{ item.notes }}
+                                        </p>
+                                    </ion-label>
+                                </ion-item>
+                            </ion-list>
+
+                            <!-- Acciones -->
+                            <div class="order-actions">
+                                <ion-button 
+                                    expand="block" 
+                                    color="warning" 
+                                    *ngIf="order.kitchen_status === 'pending'"
+                                    (click)="markAsPreparing(order)">
+                                    <ion-icon slot="start" name="alert-circle-outline"></ion-icon>
+                                    Preparando
+                                </ion-button>
+                                
+                                <ion-button 
+                                    expand="block" 
+                                    color="success" 
+                                    *ngIf="order.kitchen_status === 'preparing'"
+                                    (click)="markAsReady(order)">
+                                    <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+                                    Listo
+                                </ion-button>
+                            </div>
+                        </ion-card-content>
+                    </ion-card>
+                </ion-col>
+            </ion-row>
+        </ion-grid>
     </div>
 </ion-content>

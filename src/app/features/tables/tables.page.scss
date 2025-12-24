@@ -1,12 +1,30 @@
 .table-card {
   margin: 8px 0;
   transition: transform 0.2s;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+
+  &.status-free {
+    background: linear-gradient(135deg, #43a047 0%, #66bb6a 100%);
+    color: white;
+  }
+
+  &.status-occupied {
+    background: linear-gradient(135deg, #ffa726 0%, #ffb74d 100%);
+    color: white;
+  }
+
+  &.status-paying {
+    background: linear-gradient(135deg, #ef5350 0%, #e57373 100%);
+    color: white;
+  }
 
   ion-card-content {
     cursor: pointer;
     
     &:hover {
-      opacity: 0.9;
+      transform: scale(1.02);
+      transition: transform 0.2s;
     }
   }
 }
@@ -19,7 +37,14 @@
   width: 100%;
   
   ion-icon {
-    color: var(--ion-color-primary-contrast);
+    color: white;
+    font-size: 2.5rem;
+  }
+
+  ion-card-title {
+    color: white;
+    font-weight: 700;
+    font-size: 1.5rem;
   }
 
   .table-actions {
@@ -30,6 +55,7 @@
       --padding-start: 8px;
       --padding-end: 8px;
       height: 32px;
+      --color: white;
     }
   }
 }
@@ -43,6 +69,9 @@
     width: fit-content;
     font-size: 0.9rem;
     padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+    font-weight: 600;
   }
   
   .order-info {
@@ -52,7 +81,7 @@
     margin: 0;
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--ion-color-primary);
+    color: white;
     
     ion-icon {
       font-size: 1.1rem;
@@ -65,7 +94,7 @@
     gap: 4px;
     margin: 0;
     font-size: 0.85rem;
-    opacity: 0.9;
+    color: rgba(255, 255, 255, 0.9);
     
     ion-icon {
       font-size: 1rem;
@@ -82,5 +111,6 @@ ion-segment {
     --indicator-color: var(--ion-color-secondary);
     font-weight: 600;
     letter-spacing: 0.5px;
+    text-transform: uppercase;
   }
 }

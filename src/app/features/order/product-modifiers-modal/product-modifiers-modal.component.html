@@ -16,7 +16,7 @@
 
 <ion-content class="ion-padding">
     <!-- Exclusiones -->
-    <div class="section">
+    <div class="section" *ngIf="exclusions.length > 0">
         <h3 class="section-title">Exclusiones</h3>
         <ion-list>
             <ion-item *ngFor="let exclusion of exclusions" lines="full">
@@ -27,8 +27,20 @@
         </ion-list>
     </div>
 
+    <!-- Extras -->
+    <div class="section" *ngIf="extras.length > 0">
+        <h3 class="section-title">Extras</h3>
+        <ion-list>
+            <ion-item *ngFor="let extra of extras" lines="full">
+                <ion-checkbox slot="start" [(ngModel)]="extra.selected">
+                </ion-checkbox>
+                <ion-label>{{ extra.name }}</ion-label>
+            </ion-item>
+        </ion-list>
+    </div>
+
     <!-- Términos de Cocción -->
-    <div class="section">
+    <div class="section" *ngIf="cookingTerms.length > 0">
         <h3 class="section-title">Término de Cocción</h3>
         <ion-list>
             <ion-item *ngFor="let term of cookingTerms" lines="full">

@@ -13,8 +13,6 @@ import {
   IonItem,
   IonLabel,
   IonToggle,
-  IonFab,
-  IonFabButton,
   ModalController,
   AlertController
 } from '@ionic/angular/standalone';
@@ -44,8 +42,6 @@ import { UpsellingFormModalComponent } from '../upselling-form-modal/upselling-f
     IonItem,
     IonLabel,
     IonToggle,
-    IonFab,
-    IonFabButton,
     RouterLink
   ]
 })

@@ -20,6 +20,7 @@ import {
 import { addIcons } from 'ionicons';
 import { closeOutline, checkmarkOutline } from 'ionicons/icons';
 import { Product } from '../../../core/models';
+import { ModifierService, Modifier as ModifierData } from '../../../core/services/modifier.service';
 
 interface Modifier {
   name: string;
@@ -52,33 +53,40 @@ interface Modifier {
 export class ProductModifiersModalComponent implements OnInit {
   @Input() product!: Product;
 
-  exclusions: Modifier[] = [
-    { name: 'Sin cebolla', selected: false },
-    { name: 'Sin tomate', selected: false },
-    { name: 'Sin lechuga', selected: false },
-    { name: 'Sin pepinillos', selected: false },
-    { name: 'Sin mostaza', selected: false },
-    { name: 'Sin mayonesa', selected: false },
-    { name: 'Sin ketchup', selected: false }
-  ];
-
-  cookingTerms: Modifier[] = [
-    { name: 'Término rojo', selected: false },
-    { name: 'Término medio', selected: false },
-    { name: 'Término tres cuartos', selected: false },
-    { name: 'Bien cocido', selected: false }
-  ];
+  exclusions: Modifier[] = [];
+  extras: Modifier[] = [];
+  cookingTerms: Modifier[] = [];
 
   notes: string = '';
 
-  constructor(private modalController: ModalController) {
+  constructor(
+    private modalController: ModalController,
+    private modifierService: ModifierService
+  ) {
     addIcons({ closeOutline, checkmarkOutline });
   }
 
-  ngOnInit() {}
+  async ngOnInit() {
+    await this.loadModifiers();
+  }
+
+  async loadModifiers() {
+    const exclusionsData = await this.modifierService.getModifiersByType('EXCLUDE');
+    this.exclusions = exclusionsData.map(m => ({ name: m.name, selected: false }));
+
+    const extrasData = await this.modifierService.getModifiersByType('EXTRA');
+    this.extras = extrasData.map(m => ({ name: m.name, selected: false }));
+
+    const cookingData = await this.modifierService.getModifiersByType('COOKING');
+    this.cookingTerms = cookingData.map(m => ({ name: m.name, selected: false }));
+  }
 
   onExclusionChange(exclusion: Modifier) {
     exclusion.selected = !exclusion.selected;
+  }
+
+  onExtraChange(extra: Modifier) {
+    extra.selected = !extra.selected;
   }
 
   onCookingTermChange(term: Modifier) {
@@ -101,10 +109,14 @@ export class ProductModifiersModalComponent implements OnInit {
       .filter(e => e.selected)
       .map(e => e.name);
     
+    const selectedExtras = this.extras
+      .filter(e => e.selected)
+      .map(e => e.name);
+    
     const selectedCookingTerm = this.cookingTerms
       .find(t => t.selected)?.name;
     
-    const modifiers = [...selectedExclusions];
+    const modifiers = [...selectedExclusions, ...selectedExtras];
     if (selectedCookingTerm) {
       modifiers.push(selectedCookingTerm);
     }

@@ -1,0 +1,33 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-button (click)="cancel()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ modifier ? 'Editar' : 'Nuevo' }} Modificador</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="save()" [disabled]="!name.trim()">
+        <ion-icon slot="icon-only" name="checkmark-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <ion-list>
+    <ion-item>
+      <ion-label position="stacked">Nombre</ion-label>
+      <ion-input [(ngModel)]="name" placeholder="Ej: Sin cebolla" required></ion-input>
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Tipo</ion-label>
+      <ion-select [(ngModel)]="type" interface="action-sheet">
+        <ion-select-option value="EXCLUDE">Exclusión (Sin...)</ion-select-option>
+        <ion-select-option value="EXTRA">Extra (Agregar...)</ion-select-option>
+        <ion-select-option value="COOKING">Cocción (Término...)</ion-select-option>
+      </ion-select>
+    </ion-item>
+  </ion-list>
+</ion-content>

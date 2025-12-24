@@ -1,11 +1,18 @@
 ion-content {
-  --background: var(--ion-color-light);
+  --background: #1a1a1a;
+}
+
+ion-toolbar {
+  --background: #1e1e1e;
+  --color: #ffffff;
 }
 
 ion-item {
   --padding-start: 16px;
   --padding-end: 16px;
   margin-bottom: 8px;
+  --background: #2a2a2a;
+  --color: #ffffff;
 }
 
 ion-badge {
@@ -13,9 +20,18 @@ ion-badge {
 }
 
 ion-segment {
-  --background: var(--ion-color-light);
+  --background: #1e1e1e;
+  
+  ion-segment-button {
+    --color: #999999;
+    --color-checked: #ffffff;
+    --indicator-color: var(--ion-color-primary);
+  }
 }
 
 ion-searchbar {
-  --background: var(--ion-color-light);
+  --background: #2a2a2a;
+  --color: #ffffff;
+  --placeholder-color: #999999;
+  --icon-color: #999999;
 }

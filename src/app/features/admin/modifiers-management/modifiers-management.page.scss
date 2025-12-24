@@ -17,9 +17,19 @@ ion-card {
   --color: #ffffff;
 }
 
-.price {
-  color: var(--ion-color-success);
-  font-weight: 600;
+ion-segment {
+  margin-bottom: 16px;
+  --background: #1e1e1e;
+  
+  ion-segment-button {
+    --color: #999999;
+    --color-checked: #ffffff;
+    --indicator-color: var(--ion-color-primary);
+  }
+}
+
+.modifier-list {
+  margin-top: 16px;
 }
 
 .empty-state {
@@ -27,16 +37,12 @@ ion-card {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 60px 20px;
+  padding: 48px 24px;
   text-align: center;
-
-  ion-icon {
-    color: #999999;
-    margin-bottom: 16px;
-  }
 
   p {
     color: #999999;
+    font-size: 1.1rem;
     margin-bottom: 24px;
   }
 }

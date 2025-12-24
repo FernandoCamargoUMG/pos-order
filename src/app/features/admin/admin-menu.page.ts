@@ -27,7 +27,8 @@ import {
   gridOutline,
   statsChartOutline,
   settingsOutline,
-  bagAddOutline
+  bagAddOutline,
+  optionsOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../core/services/auth.service';
 import { App } from '@capacitor/app';
@@ -71,6 +72,13 @@ export class AdminMenuPage implements OnInit, OnDestroy {
             color: 'success',
             route: '/upselling-management',
             description: 'Gestionar ofertas y combos'
+        },
+        {
+            title: 'Modificadores',
+            icon: 'options-outline',
+            color: 'tertiary',
+            route: '/modifiers-management',
+            description: 'Exclusiones, extras y términos'
         },
         {
             title: 'Mesas',
@@ -122,7 +130,8 @@ export class AdminMenuPage implements OnInit, OnDestroy {
             gridOutline,
             statsChartOutline,
             settingsOutline,
-            bagAddOutline
+            bagAddOutline,
+            optionsOutline
         });
     }
 

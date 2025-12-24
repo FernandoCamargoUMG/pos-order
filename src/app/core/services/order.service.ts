@@ -8,10 +8,13 @@ export interface Order {
   user_id?: string;
   device_id: string;
   status: 'OPEN' | 'SENT' | 'PAYING' | 'CLOSED';
+  kitchen_status?: 'pending' | 'preparing' | 'ready';
   printed: number;
   conflict: number;
   conflict_reason?: string;
+  notes?: string;
   created_at: string;
+  updated_at?: string;
   deleted_at?: string;
 }
 
@@ -191,7 +194,30 @@ export class OrderService {
    */
   async updateOrderStatus(orderId: string, status: 'OPEN' | 'SENT' | 'PAYING' | 'CLOSED'): Promise<void> {
     const db = this.dbService.getDB();
-    const updateQuery = `UPDATE orders SET status = ? WHERE id_local = ?`;
+    const updateQuery = `UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id_local = ?`;
     await db.run(updateQuery, [status, orderId]);
+  }
+
+  /**
+   * Obtiene órdenes por estado
+   */
+  async getOrdersByStatus(status: string): Promise<Order[]> {
+    const db = this.dbService.getDB();
+    const query = `
+      SELECT * FROM orders 
+      WHERE status = ? AND deleted_at IS NULL
+      ORDER BY created_at ASC
+    `;
+    const result = await db.query(query, [status]);
+    return result.values || [];
+  }
+
+  /**
+   * Actualiza el estado de cocina de una orden (para KDS)
+   */
+  async updateOrderKitchenStatus(orderId: string, kitchenStatus: 'pending' | 'preparing' | 'ready'): Promise<void> {
+    const db = this.dbService.getDB();
+    const updateQuery = `UPDATE orders SET kitchen_status = ?, updated_at = datetime('now') WHERE id_local = ?`;
+    await db.run(updateQuery, [kitchenStatus, orderId]);
   }
 }

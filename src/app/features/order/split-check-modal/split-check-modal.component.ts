@@ -17,13 +17,27 @@ import {
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
+  IonGrid,
+  IonRow,
+  IonCol,
   ModalController,
-  AlertController
+  AlertController,
+  ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, addOutline, cardOutline, checkmarkOutline, trashOutline } from 'ionicons/icons';
+import { closeOutline, addOutline, cardOutline, checkmarkOutline, trashOutline, swapHorizontalOutline, arrowForwardOutline } from 'ionicons/icons';
 import { OrderService, Order } from '../../../core/services/order.service';
 import { TableService } from '../../../core/services/table.service';
+
+interface OrderWithItems extends Order {
+  items: any[];
+  total: number;
+}
+
+interface DraggedItem {
+  item: any;
+  sourceOrderId: string;
+}
 
 @Component({
   selector: 'app-split-check-modal',
@@ -43,81 +57,218 @@ import { TableService } from '../../../core/services/table.service';
     IonItem,
     IonLabel,
     IonBadge,
-    IonFooter,
     IonCard,
     IonCardHeader,
     IonCardTitle,
-    IonCardContent
+    IonCardContent,
+    IonGrid,
+    IonRow,
+    IonCol
   ]
 })
 export class SplitCheckModalComponent implements OnInit {
   @Input() tableId!: number;
   @Input() tableName!: string;
-  @Input() selectedOrderId?: string; // Para mostrar una cuenta específica expandida
-  @Input() expandAll: boolean = false; // Para expandir todas las cuentas
+  @Input() selectedOrderId?: string;
+  @Input() expandAll: boolean = false;
   
-  orders: Order[] = [];
-  orderItems: Map<string, any[]> = new Map();
-  orderTotals: Map<string, number> = new Map();
-  expandedOrderIds: Set<string> = new Set(); // Para expandir/colapsar múltiples cuentas
+  ordersWithItems: OrderWithItems[] = [];
+  draggedItem: DraggedItem | null = null;
+  isDragMode: boolean = false;
 
   constructor(
     private modalController: ModalController,
     private alertController: AlertController,
+    private toastController: ToastController,
     private orderService: OrderService,
     private tableService: TableService
   ) {
-    addIcons({ closeOutline, addOutline, cardOutline, checkmarkOutline, trashOutline });
+    addIcons({ closeOutline, addOutline, cardOutline, checkmarkOutline, trashOutline, swapHorizontalOutline, arrowForwardOutline });
   }
 
   async ngOnInit() {
     await this.loadOrders();
-    
-    // Si se especificó expandir todas, expandir todas las órdenes
-    if (this.expandAll) {
-      this.orders.forEach(order => {
-        this.expandedOrderIds.add(order.id_local);
-      });
-    }
-    // Si se especificó una orden, expandirla automáticamente
-    else if (this.selectedOrderId) {
-      this.expandedOrderIds.add(this.selectedOrderId);
-    }
   }
 
   async loadOrders() {
-    // Cargar todas las órdenes activas de la mesa
-    this.orders = await this.orderService.getOrdersByTable(this.tableId);
+    const orders = await this.orderService.getOrdersByTable(this.tableId);
     
-    // Cargar items de cada orden
-    for (const order of this.orders) {
+    this.ordersWithItems = [];
+    for (const order of orders) {
       const items = await this.orderService.getOrderItems(order.id_local);
-      this.orderItems.set(order.id_local, items);
-      
-      // Calcular total de cada orden
       const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      this.orderTotals.set(order.id_local, total);
+      
+      this.ordersWithItems.push({
+        ...order,
+        items: items,
+        total: total
+      });
     }
   }
 
-  getOrderItems(orderId: string): any[] {
-    return this.orderItems.get(orderId) || [];
-  }
-
-  toggleOrderDetails(orderId: string) {
-    if (this.expandedOrderIds.has(orderId)) {
-      this.expandedOrderIds.delete(orderId);
-    } else {
-      this.expandedOrderIds.add(orderId);
+  toggleDragMode() {
+    this.isDragMode = !this.isDragMode;
+    if (!this.isDragMode) {
+      this.draggedItem = null;
     }
   }
 
-  isExpanded(orderId: string): boolean {
-    return this.expandedOrderIds.has(orderId);
+  onDragStart(event: DragEvent, item: any, orderId: string) {
+    if (!this.isDragMode) return;
+    
+    this.draggedItem = { item, sourceOrderId: orderId };
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', JSON.stringify({ item, sourceOrderId: orderId }));
+    }
   }
 
-  getOrderTotal(orderId: string): number {
-    return this.orderTotals.get(orderId) || 0;
+  onDragOver(event: DragEvent) {
+    if (!this.isDragMode || !this.draggedItem) return;
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  async onDrop(event: DragEvent, targetOrderId: string) {
+    if (!this.isDragMode || !this.draggedItem) return;
+    
+    event.preventDefault();
+    
+    const sourceOrderId = this.draggedItem.sourceOrderId;
+    const item = this.draggedItem.item;
+    
+    // No permitir mover a la misma orden
+    if (sourceOrderId === targetOrderId) {
+      this.showToast('No puedes mover un item a la misma cuenta', 'warning');
+      return;
+    }
+    
+    // Confirmar movimiento
+    const alert = await this.alertController.create({
+      header: 'Mover Item',
+      message: `¿Mover "${item.product_name}" a otra cuenta?`,
+      buttons: [
+        {
+          text: 'Cancelar',
+          role: 'cancel'
+        },
+        {
+          text: 'Mover',
+          handler: async () => {
+            await this.moveItem(sourceOrderId, targetOrderId, item);
+          }
+        }
+      ]
+    });
+    
+    await alert.present();
+    this.draggedItem = null;
+  }
+
+  async moveItem(sourceOrderId: string, targetOrderId: string, item: any) {
+    try {
+      // Remover del source
+      const sourceOrder = this.ordersWithItems.find(o => o.id_local === sourceOrderId);
+      if (sourceOrder) {
+        sourceOrder.items = sourceOrder.items.filter(i => i.id_local !== item.id_local);
+        sourceOrder.total = sourceOrder.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+      }
+      
+      // Agregar al target
+      const targetOrder = this.ordersWithItems.find(o => o.id_local === targetOrderId);
+      if (targetOrder) {
+        targetOrder.items.push(item);
+        targetOrder.total = targetOrder.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+      }
+      
+      // Actualizar en base de datos
+      await this.updateOrderInDatabase(sourceOrder!);
+      await this.updateOrderInDatabase(targetOrder!);
+      
+      this.showToast('Item movido exitosamente', 'success');
+    } catch (error) {
+      console.error('Error moviendo item:', error);
+      this.showToast('Error al mover item', 'danger');
+      await this.loadOrders(); // Recargar en caso de error
+    }
+  }
+
+  async updateOrderInDatabase(order: OrderWithItems) {
+    // Convertir items a formato esperado por updateOrder
+    const itemsData = order.items.map(item => ({
+      productId: item.product_id,
+      productName: item.product_name,
+      quantity: item.quantity,
+      price: item.price,
+      notes: item.notes,
+      modifiers: item.modifiers || []
+    }));
+    
+    await this.orderService.updateOrder(order.id_local, itemsData);
+  }
+
+  async createNewCheck() {
+    const alert = await this.alertController.create({
+      header: 'Nueva Cuenta',
+      message: '¿Crear una nueva cuenta para esta mesa?',
+      buttons: [
+        {
+          text: 'Cancelar',
+          role: 'cancel'
+        },
+        {
+          text: 'Crear',
+          handler: () => {
+            this.modalController.dismiss({ action: 'new-check' }, 'new-check');
+          }
+        }
+      ]
+    });
+    await alert.present();
+  }
+
+  editOrder(order: OrderWithItems) {
+    this.modalController.dismiss({ action: 'edit', order: order }, 'edit');
+  }
+
+  async markAsPaying(order: OrderWithItems) {
+    const alert = await this.alertController.create({
+      header: 'Cambiar a Pagar',
+      message: `¿Marcar orden como "Pagando"?`,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Sí, Pagar',
+          handler: async () => {
+            await this.orderService.updateOrderStatus(order.id_local, 'PAYING');
+            await this.updateTableStatus();
+            await this.loadOrders();
+          }
+        }
+      ]
+    });
+    await alert.present();
+  }
+
+  async closeOrder(order: OrderWithItems) {
+    const alert = await this.alertController.create({
+      header: 'Cerrar Orden',
+      message: `¿Cerrar orden definitivamente? Total: Q${order.total.toFixed(2)}`,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Sí, Cerrar',
+          handler: async () => {
+            await this.orderService.updateOrderStatus(order.id_local, 'CLOSED');
+            await this.updateTableStatus();
+            await this.loadOrders();
+          }
+        }
+      ]
+    });
+    await alert.present();
   }
 
   getStatusBadgeColor(status: string): string {
@@ -140,63 +291,12 @@ export class SplitCheckModalComponent implements OnInit {
     }
   }
 
-  async createNewCheck() {
-    this.modalController.dismiss({ action: 'new-check' }, 'new-check');
-  }
-
-  editOrder(order: Order) {
-    // Cerrar modal y pasar la orden a editar
-    this.modalController.dismiss({ action: 'edit', order: order }, 'edit');
-  }
-
-  async markAsPaying(order: Order) {
-    const alert = await this.alertController.create({
-      header: 'Cambiar a Pagar',
-      message: `¿Marcar orden como "Pagando"?`,
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Sí, Pagar',
-          handler: async () => {
-            await this.orderService.updateOrderStatus(order.id_local, 'PAYING');
-            await this.updateTableStatus();
-            await this.loadOrders();
-          }
-        }
-      ]
-    });
-    await alert.present();
-  }
-
-  async closeOrder(order: Order) {
-    const alert = await this.alertController.create({
-      header: 'Cerrar Orden',
-      message: `¿Cerrar orden definitivamente? Total: Q${this.getOrderTotal(order.id_local).toFixed(2)}`,
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Sí, Cerrar',
-          handler: async () => {
-            await this.orderService.updateOrderStatus(order.id_local, 'CLOSED');
-            await this.updateTableStatus();
-            await this.loadOrders();
-          }
-        }
-      ]
-    });
-    await alert.present();
-  }
-
   async updateTableStatus() {
-    // Obtener todas las órdenes activas de esta mesa
-    const allOrders = await this.orderService.getOrdersByTable(this.tableId);
-    const activeOrders = allOrders.filter(order => order.status !== 'CLOSED');
+    const activeOrders = this.ordersWithItems.filter(order => order.status !== 'CLOSED');
     
     if (activeOrders.length === 0) {
-      // Sin órdenes activas → FREE
       await this.tableService.releaseTable(this.tableId);
     } else {
-      // Verificar si alguna orden está en PAYING
       const hasPayingOrder = activeOrders.some(order => order.status === 'PAYING');
       
       if (hasPayingOrder) {
@@ -205,6 +305,16 @@ export class SplitCheckModalComponent implements OnInit {
         await this.tableService.updateTableStatus(this.tableId, 'OCCUPIED');
       }
     }
+  }
+
+  async showToast(message: string, color: string) {
+    const toast = await this.toastController.create({
+      message,
+      duration: 2000,
+      color,
+      position: 'top'
+    });
+    await toast.present();
   }
 
   close() {

@@ -40,8 +40,12 @@
     <ion-row>
       <ion-col size="12" size-md="6" size-lg="4" *ngFor="let table of filteredTables">
         <ion-card 
-          [color]="getTableColor(table)"
-          class="table-card">
+          [ngClass]="{
+            'table-card': true,
+            'status-free': table.status === 'FREE',
+            'status-occupied': table.status === 'OCCUPIED',
+            'status-paying': table.status === 'PAYING'
+          }">
           <ion-card-header>
             <div class="table-header">
               <ion-icon name="restaurant-outline" size="large"></ion-icon>
@@ -50,7 +54,7 @@
                 <ion-button fill="clear" size="small" (click)="openTableForm(table); $event.stopPropagation()">
                   <ion-icon slot="icon-only" name="create-outline"></ion-icon>
                 </ion-button>
-                <ion-button fill="clear" size="small" color="danger" (click)="deleteTable(table); $event.stopPropagation()">
+                <ion-button fill="clear" size="small" color="light" (click)="deleteTable(table); $event.stopPropagation()">
                   <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
                 </ion-button>
               </div>
@@ -58,7 +62,7 @@
           </ion-card-header>
           <ion-card-content (click)="onTableClick(table)">
             <div class="table-info">
-              <ion-badge [color]="getTableColor(table)">
+              <ion-badge>
                 {{ getTableStatusText(table) }}
               </ion-badge>
               <p *ngIf="table.status === 'OCCUPIED'" class="order-info">

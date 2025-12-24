@@ -75,10 +75,13 @@ CREATE TABLE IF NOT EXISTS orders (
   user_id TEXT,
   device_id TEXT,
   status TEXT CHECK(status IN ('OPEN','SENT','PAYING','CLOSED')),
+  kitchen_status TEXT CHECK(kitchen_status IN ('pending','preparing','ready')) DEFAULT 'pending',
   printed INTEGER DEFAULT 0,
   conflict INTEGER DEFAULT 0,
   conflict_reason TEXT,
+  notes TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME,
   deleted_at DATETIME
 );
 

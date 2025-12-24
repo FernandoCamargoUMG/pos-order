@@ -1,0 +1,52 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Gestión de Modificadores</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="openFormModal()">
+        <ion-icon slot="icon-only" name="add-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <ion-segment [(ngModel)]="selectedType" (ionChange)="onSegmentChange($event)">
+    <ion-segment-button value="EXCLUDE">
+      <ion-label>Exclusiones</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="EXTRA">
+      <ion-label>Extras</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="COOKING">
+      <ion-label>Cocción</ion-label>
+    </ion-segment-button>
+  </ion-segment>
+
+  <ion-list class="modifier-list">
+    <ion-item *ngFor="let modifier of getModifiersByType(selectedType)" lines="full">
+      <ion-label>
+        <h2>{{ modifier.name }}</h2>
+        <p>{{ getTypeLabel(modifier.type) }}</p>
+      </ion-label>
+      <ion-button slot="end" fill="clear" color="primary" (click)="openFormModal(modifier)">
+        <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+      </ion-button>
+      <ion-button slot="end" fill="clear" color="danger" (click)="deleteModifier(modifier)">
+        <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+      </ion-button>
+    </ion-item>
+  </ion-list>
+
+  <div class="empty-state" *ngIf="getModifiersByType(selectedType).length === 0">
+    <p>No hay modificadores de tipo {{ getTypeLabel(selectedType) }}</p>
+    <ion-button (click)="openFormModal()" color="primary">
+      <ion-icon slot="start" name="add-outline"></ion-icon>
+      Crear Primero
+    </ion-button>
+  </div>
+</ion-content>
