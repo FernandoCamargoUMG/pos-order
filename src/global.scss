@@ -35,3 +35,201 @@
 @import "@ionic/angular/css/palettes/dark.always.css";
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
 /* @import '@ionic/angular/css/palettes/dark.system.css'; */
+
+// ELIMINAR TODOS LOS BORDES NEGROS DE LA APLICACIÓN
+* {
+  border-color: transparent !important;
+  outline: none !important;
+}
+
+ion-card, ion-item, ion-list, ion-button, ion-input, ion-textarea,
+ion-select, ion-checkbox, ion-radio, ion-toggle, ion-badge, ion-chip,
+ion-segment, ion-segment-button, ion-toolbar, ion-header, ion-footer,
+ion-content, ion-modal, ion-alert, ion-toast, ion-popover, ion-menu {
+  border: none !important;
+  outline: none !important;
+  --border-width: 0 !important;
+  --border-color: transparent !important;
+}
+
+// Eliminar bordes negros de diálogos y alertas
+ion-alert {
+  --backdrop-opacity: 0.4;
+  --box-shadow: none !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  
+  .alert-wrapper {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  
+  &::part(container) {
+    border: none !important;
+    outline: none !important;
+  }
+  
+  &::part(message) {
+    border: none !important;
+  }
+  
+  .alert-button-group {
+    border: none !important;
+  }
+  
+  .alert-button {
+    border: none !important;
+  }
+}
+
+ion-modal {
+  --backdrop-opacity: 0.4;
+  --box-shadow: none !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  
+  .modal-wrapper {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  
+  &::part(container) {
+    border: none !important;
+    outline: none !important;
+  }
+  
+  &::part(content) {
+    border: none !important;
+  }
+}
+
+ion-popover {
+  --backdrop-opacity: 0.4;
+  --box-shadow: none !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  
+  .popover-wrapper {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  
+  &::part(container) {
+    border: none !important;
+    outline: none !important;
+  }
+  
+  &::part(content) {
+    border: none !important;
+  }
+}
+
+// Eliminar cualquier borde en backdrops
+.ion-backdrop {
+  border: none !important;
+}
+
+// Cards sin bordes oscuros
+ion-card {
+  --box-shadow: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  border: none !important;
+  
+  &::part(native) {
+    border: none !important;
+  }
+}
+
+// Buttons sin bordes
+ion-button {
+  --box-shadow: none !important;
+  border: none !important;
+  
+  &::part(native) {
+    border: none !important;
+    outline: none !important;
+  }
+}
+
+// Items sin bordes
+ion-item {
+  --border-width: 0 !important;
+  --inner-border-width: 0 !important;
+  --box-shadow: none !important;
+  border: none !important;
+  
+  &::part(native) {
+    border: none !important;
+  }
+}
+
+// List sin bordes
+ion-list {
+  border: none !important;
+  
+  &::part(container) {
+    border: none !important;
+  }
+}
+
+// Inputs sin bordes oscuros
+ion-input, ion-textarea, ion-select {
+  --box-shadow: none !important;
+  border: none !important;
+  
+  &::part(native) {
+    border: none !important;
+  }
+}
+
+// Mejorar toasts - ELIMINAR TODOS LOS BORDES
+ion-toast {
+  --border-radius: 12px;
+  --box-shadow: none !important;
+  --min-height: 60px;
+  --border-width: 0 !important;
+  --border-color: transparent !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  
+  &.custom-toast {
+    --start: 16px;
+    --end: 16px;
+    --bottom: 80px;
+    border: none !important;
+    outline: none !important;
+    
+    .toast-message {
+      font-size: 15px;
+      font-weight: 500;
+    }
+    
+    .toast-wrapper {
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+    }
+    
+    &::part(container) {
+      border: none !important;
+      outline: none !important;
+    }
+    
+    &::part(message) {
+      border: none !important;
+    }
+  }
+  
+  .toast-container {
+    border: none !important;
+    outline: none !important;
+  }
+  
+  .toast-content {
+    border: none !important;
+    outline: none !important;
+  }
+}

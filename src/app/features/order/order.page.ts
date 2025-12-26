@@ -280,8 +280,9 @@ export class OrderPage implements OnInit, OnDestroy {
     const toast = await this.toastController.create({
       message: `Editando orden #${order.id_local.slice(-6)}. Puedes agregar/eliminar items.`,
       duration: 3000,
-      position: 'top',
-      color: 'primary'
+      position: 'bottom',
+      color: 'primary',
+      cssClass: 'custom-toast'
     });
     await toast.present();
   }

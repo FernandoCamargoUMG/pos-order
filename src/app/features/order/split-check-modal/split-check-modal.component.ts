@@ -106,10 +106,15 @@ export class SplitCheckModalComponent implements OnInit {
     }
   }
 
-  toggleDragMode() {
+  async toggleDragMode() {
     this.isDragMode = !this.isDragMode;
     if (!this.isDragMode) {
       this.draggedItem = null;
+    } else {
+      // Al activar modo drag, crear cuenta vacía si solo hay una cuenta
+      if (this.ordersWithItems.length === 1) {
+        await this.createNewCheckSilent();
+      }
     }
   }
 
@@ -138,6 +143,13 @@ export class SplitCheckModalComponent implements OnInit {
     
     const sourceOrderId = this.draggedItem.sourceOrderId;
     const item = this.draggedItem.item;
+    
+    // Verificar que la cuenta destino permita recibir items (no PAYING ni CLOSED)
+    const targetOrder = this.ordersWithItems.find(o => o.id_local === targetOrderId);
+    if (targetOrder && (targetOrder.status === 'PAYING' || targetOrder.status === 'CLOSED')) {
+      this.showToast('No puedes agregar items a una cuenta en proceso de pago o cerrada', 'warning');
+      return;
+    }
     
     // No permitir mover a la misma orden
     if (sourceOrderId === targetOrderId) {
@@ -187,6 +199,19 @@ export class SplitCheckModalComponent implements OnInit {
       await this.updateOrderInDatabase(sourceOrder!);
       await this.updateOrderInDatabase(targetOrder!);
       
+      // Si las órdenes estaban enviadas, actualizar timestamp para notificar cocina
+      if (sourceOrder?.status === 'SENT') {
+        await this.orderService.updateOrderStatus(sourceOrder.id_local, 'SENT');
+      }
+      if (targetOrder?.status === 'SENT') {
+        await this.orderService.updateOrderStatus(targetOrder.id_local, 'SENT');
+      }
+      
+      // Eliminar cuenta origen si quedó vacía (solo si hay más de una cuenta)
+      if (sourceOrder && sourceOrder.items.length === 0 && this.ordersWithItems.length > 1) {
+        await this.deleteEmptyOrder(sourceOrder.id_local);
+      }
+      
       this.showToast('Item movido exitosamente', 'success');
     } catch (error) {
       console.error('Error moviendo item:', error);
@@ -209,6 +234,20 @@ export class SplitCheckModalComponent implements OnInit {
     await this.orderService.updateOrder(order.id_local, itemsData);
   }
 
+  async createNewCheckSilent() {
+    // Crear cuenta vacía sin confirmación (para modo drag)
+    try {
+      const deviceId = localStorage.getItem('device_id') || 'unknown';
+      const newOrderId = await this.orderService.createOrder(this.tableId, deviceId, []);
+      await this.tableService.assignOrderToTable(this.tableId, newOrderId, deviceId);
+      await this.loadOrders();
+      this.showToast('Cuenta vacía creada. Arrastra items aquí', 'success');
+    } catch (error) {
+      console.error('Error creando cuenta:', error);
+      this.showToast('Error al crear cuenta', 'danger');
+    }
+  }
+
   async createNewCheck() {
     const alert = await this.alertController.create({
       header: 'Nueva Cuenta',
@@ -220,8 +259,8 @@ export class SplitCheckModalComponent implements OnInit {
         },
         {
           text: 'Crear',
-          handler: () => {
-            this.modalController.dismiss({ action: 'new-check' }, 'new-check');
+          handler: async () => {
+            await this.createNewCheckSilent();
           }
         }
       ]
@@ -231,6 +270,48 @@ export class SplitCheckModalComponent implements OnInit {
 
   editOrder(order: OrderWithItems) {
     this.modalController.dismiss({ action: 'edit', order: order }, 'edit');
+  }
+
+  async deleteEmptyOrder(orderId: string) {
+    try {
+      // Eliminar de la base de datos
+      await this.orderService.deleteOrder(orderId);
+      // Remover de la lista
+      this.ordersWithItems = this.ordersWithItems.filter(o => o.id_local !== orderId);
+      await this.updateTableStatus();
+      this.showToast('Cuenta vacía eliminada', 'success');
+    } catch (error) {
+      console.error('Error eliminando cuenta:', error);
+      this.showToast('Error al eliminar cuenta', 'danger');
+    }
+  }
+
+  async confirmDeleteOrder(order: OrderWithItems) {
+    if (order.items.length > 0) {
+      this.showToast('No puedes eliminar una cuenta con items. Muévelos primero.', 'warning');
+      return;
+    }
+
+    if (this.ordersWithItems.length === 1) {
+      this.showToast('No puedes eliminar la única cuenta de la mesa', 'warning');
+      return;
+    }
+
+    const alert = await this.alertController.create({
+      header: 'Eliminar Cuenta',
+      message: '¿Eliminar esta cuenta vacía?',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Eliminar',
+          role: 'destructive',
+          handler: async () => {
+            await this.deleteEmptyOrder(order.id_local);
+          }
+        }
+      ]
+    });
+    await alert.present();
   }
 
   async markAsPaying(order: OrderWithItems) {
@@ -310,9 +391,10 @@ export class SplitCheckModalComponent implements OnInit {
   async showToast(message: string, color: string) {
     const toast = await this.toastController.create({
       message,
-      duration: 2000,
+      duration: 2500,
       color,
-      position: 'top'
+      position: 'bottom',
+      cssClass: 'custom-toast'
     });
     await toast.present();
   }

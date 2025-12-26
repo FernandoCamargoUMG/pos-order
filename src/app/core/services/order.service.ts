@@ -194,7 +194,7 @@ export class OrderService {
    */
   async updateOrderStatus(orderId: string, status: 'OPEN' | 'SENT' | 'PAYING' | 'CLOSED'): Promise<void> {
     const db = this.dbService.getDB();
-    const updateQuery = `UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id_local = ?`;
+    const updateQuery = `UPDATE orders SET status = ?, updated_at = datetime('now', 'localtime') WHERE id_local = ?`;
     await db.run(updateQuery, [status, orderId]);
   }
 
@@ -217,7 +217,18 @@ export class OrderService {
    */
   async updateOrderKitchenStatus(orderId: string, kitchenStatus: 'pending' | 'preparing' | 'ready'): Promise<void> {
     const db = this.dbService.getDB();
-    const updateQuery = `UPDATE orders SET kitchen_status = ?, updated_at = datetime('now') WHERE id_local = ?`;
+    const updateQuery = `UPDATE orders SET kitchen_status = ?, updated_at = datetime('now', 'localtime') WHERE id_local = ?`;
     await db.run(updateQuery, [kitchenStatus, orderId]);
+  }
+
+  /**
+   * Elimina una orden y sus items asociados
+   */
+  async deleteOrder(orderId: string): Promise<void> {
+    const db = this.dbService.getDB();
+    // Eliminar items de la orden
+    await db.run(`DELETE FROM order_items WHERE order_id = ?`, [orderId]);
+    // Eliminar la orden
+    await db.run(`DELETE FROM orders WHERE id_local = ?`, [orderId]);
   }
 }

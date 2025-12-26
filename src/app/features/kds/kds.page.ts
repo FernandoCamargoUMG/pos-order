@@ -49,6 +49,7 @@ import {
     documentTextOutline
 } from 'ionicons/icons';
 import { App } from '@capacitor/app';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { interval, Subscription } from 'rxjs';
 
 interface KitchenOrder {
@@ -139,6 +140,9 @@ export class KdsPage implements OnInit, OnDestroy {
     }
 
     async ngOnInit() {
+        // Solicitar permisos de notificaciones
+        await this.requestNotificationPermissions();
+        
         await this.loadOrders();
         
         // Auto-refresh cada 10 segundos
@@ -169,15 +173,19 @@ export class KdsPage implements OnInit, OnDestroy {
                 const table = await this.tableService.getTableById(order.table_id);
                 const items = await this.orderService.getOrderItems(order.id_local);
                 
+                // SQLite datetime('now') devuelve UTC, convertir correctamente
                 const sentAt = new Date(order.updated_at || order.created_at);
                 const now = new Date();
                 const elapsedMinutes = Math.floor((now.getTime() - sentAt.getTime()) / 60000);
                 
+                // Proteger contra tiempos negativos (si el timestamp está mal)
+                const safeElapsedMinutes = Math.max(0, elapsedMinutes);
+                
                 // Determinar prioridad según tiempo transcurrido
                 let priority: 'normal' | 'warning' | 'critical' = 'normal';
-                if (elapsedMinutes > 20) {
+                if (safeElapsedMinutes > 20) {
                     priority = 'critical';
-                } else if (elapsedMinutes > 10) {
+                } else if (safeElapsedMinutes > 10) {
                     priority = 'warning';
                 }
                 
@@ -189,7 +197,7 @@ export class KdsPage implements OnInit, OnDestroy {
                     items: items,
                     created_at: order.created_at,
                     sent_at: order.updated_at || order.created_at,
-                    elapsed_minutes: elapsedMinutes,
+                    elapsed_minutes: safeElapsedMinutes,
                     priority: priority,
                     kitchen_status: order.kitchen_status || 'pending'
                 });
@@ -198,7 +206,7 @@ export class KdsPage implements OnInit, OnDestroy {
             // Detectar nuevas órdenes y reproducir sonido
             if (!silent && processedOrders.length > this.lastOrderCount) {
                 this.playNotificationSound();
-                this.showNewOrderToast();
+                await this.showNewOrderNotification(processedOrders.length - this.lastOrderCount);
             }
             
             this.lastOrderCount = processedOrders.length;
@@ -274,7 +282,8 @@ export class KdsPage implements OnInit, OnDestroy {
                 message: `${order.table_name} marcada como "En Preparación"`,
                 duration: 2000,
                 color: 'warning',
-                position: 'top'
+                position: 'bottom',
+                cssClass: 'custom-toast'
             });
             await toast.present();
         } catch (error) {
@@ -309,7 +318,8 @@ export class KdsPage implements OnInit, OnDestroy {
                                 message: `Orden de ${order.table_name} completada ✓`,
                                 duration: 3000,
                                 color: 'success',
-                                position: 'top'
+                                position: 'bottom',
+                                cssClass: 'custom-toast'
                             });
                             await toast.present();
                         } catch (error) {
@@ -348,7 +358,8 @@ export class KdsPage implements OnInit, OnDestroy {
                                 message: `Orden de ${order.table_name} recuperada`,
                                 duration: 2000,
                                 color: 'primary',
-                                position: 'top'
+                                position: 'bottom',
+                                cssClass: 'custom-toast'
                             });
                             await toast.present();
                         } catch (error) {
@@ -400,10 +411,47 @@ export class KdsPage implements OnInit, OnDestroy {
             message: '🔔 Nueva orden recibida',
             duration: 3000,
             color: 'primary',
-            position: 'top',
-            cssClass: 'new-order-toast'
+            position: 'bottom',
+            cssClass: 'custom-toast'
         });
         await toast.present();
+    }
+
+    async requestNotificationPermissions() {
+        try {
+            const result = await LocalNotifications.requestPermissions();
+            console.log('Permisos de notificación:', result);
+        } catch (error) {
+            console.error('Error solicitando permisos:', error);
+        }
+    }
+
+    async showNewOrderNotification(newOrderCount: number) {
+        try {
+            await LocalNotifications.schedule({
+                notifications: [
+                    {
+                        title: '🔔 Nueva Orden en Cocina',
+                        body: `${newOrderCount} orden${newOrderCount > 1 ? 'es' : ''} nueva${newOrderCount > 1 ? 's' : ''} recibida${newOrderCount > 1 ? 's' : ''}`,
+                        id: Date.now(),
+                        schedule: { at: new Date(Date.now() + 100) },
+                        sound: 'default',
+                        attachments: undefined,
+                        actionTypeId: '',
+                        extra: {
+                            route: '/kds'
+                        }
+                    }
+                ]
+            });
+
+            // También mostrar toast si está en la app
+            await this.showNewOrderToast();
+        } catch (error) {
+            console.error('Error mostrando notificación:', error);
+            // Fallback a toast si falla la notificación
+            await this.showNewOrderToast();
+        }
     }
 
     async logout() {

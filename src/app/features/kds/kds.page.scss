@@ -30,7 +30,8 @@ ion-header {
             --indicator-color: var(--ion-color-primary);
             text-transform: uppercase;
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
+            min-width: auto;
             
             ion-label {
                 display: flex;
@@ -55,11 +56,9 @@ ion-header {
     --background: #1e1e1e;
     border-radius: 16px;
     margin-bottom: 16px;
-    border: 3px solid transparent;
     transition: all 0.3s ease;
     
     &.priority-normal {
-        border-color: #2a2a2a;
         
         .order-header {
             background: linear-gradient(135deg, #1a1a1a, #252525);
@@ -67,7 +66,6 @@ ion-header {
     }
     
     &.priority-warning {
-        border-color: #ffa726;
         animation: pulse-warning 2s infinite;
         
         .order-header {
@@ -76,7 +74,6 @@ ion-header {
     }
     
     &.priority-critical {
-        border-color: #ef5350;
         animation: pulse-critical 1s infinite;
         
         .order-header {
@@ -130,7 +127,7 @@ ion-header {
             align-items: center;
             padding: 12px 16px;
             background: #252525;
-            border-bottom: 1px solid #3a3a3a;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
             
             .order-time {
                 color: #999;
@@ -181,7 +178,6 @@ ion-header {
                         padding: 8px;
                         background: rgba(79, 195, 247, 0.1);
                         border-radius: 6px;
-                        border-left: 3px solid #4fc3f7;
                         
                         ion-icon {
                             font-size: 1rem;
@@ -257,7 +253,6 @@ ion-header {
     
     .history-card {
         opacity: 0.8;
-        border: 2px solid var(--ion-color-success);
         
         .order-header {
             background: linear-gradient(135deg, #1b4d1b, #256b25) !important;

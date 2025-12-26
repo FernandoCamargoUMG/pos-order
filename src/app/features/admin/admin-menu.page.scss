@@ -29,6 +29,16 @@ ion-toolbar {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   --background: #2a2a2a;
+  border: none !important;
+  outline: none !important;
+  --border-color: transparent !important;
+  --border-width: 0 !important;
+  --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  
+  &::part(native) {
+    border: none !important;
+    outline: none !important;
+  }
   
   &:hover {
     transform: translateY(-4px);

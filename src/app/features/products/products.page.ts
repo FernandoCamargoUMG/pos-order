@@ -230,7 +230,8 @@ export class ProductsPage implements OnInit, OnDestroy {
             message,
             duration: 2000,
             color,
-            position: 'bottom'
+            position: 'bottom',
+            cssClass: 'custom-toast'
         });
         await toast.present();
     }

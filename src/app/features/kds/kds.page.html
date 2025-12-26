@@ -27,25 +27,25 @@
         <ion-segment [(ngModel)]="selectedView" (ionChange)="onViewChange($event)" value="all">
             <ion-segment-button value="all">
                 <ion-label>
-                    Todas
+                    TODO
                     <ion-badge color="primary">{{ orders.length }}</ion-badge>
                 </ion-label>
             </ion-segment-button>
             <ion-segment-button value="pending">
                 <ion-label>
-                    Pendientes
+                    PEND
                     <ion-badge color="light">{{ getPendingCount() }}</ion-badge>
                 </ion-label>
             </ion-segment-button>
             <ion-segment-button value="preparing">
                 <ion-label>
-                    En Preparación
+                    PREP
                     <ion-badge color="warning">{{ getPreparingCount() }}</ion-badge>
                 </ion-label>
             </ion-segment-button>
             <ion-segment-button value="history">
                 <ion-label>
-                    Historial
+                    HIST
                     <ion-badge color="success">{{ finishedOrders.length }}</ion-badge>
                 </ion-label>
             </ion-segment-button>

@@ -19,7 +19,7 @@
   <!-- Instrucciones cuando está en modo drag -->
   <div *ngIf="isDragMode" class="drag-instructions">
     <ion-icon name="arrow-forward-outline"></ion-icon>
-    <p><strong>Modo Drag & Drop activado:</strong> Arrastra items entre cuentas para dividirlas</p>
+    <p><strong>Modo Drag & Drop activado:</strong> Arrastra items entre cuentas abiertas o enviadas para dividirlas. No puedes mover items a cuentas en proceso de pago.</p>
   </div>
 
   <div class="header-section">
@@ -57,12 +57,12 @@
                 <ion-item 
                   *ngFor="let item of order.items" 
                   lines="none"
-                  [draggable]="isDragMode && order.status === 'OPEN'"
+                  [draggable]="isDragMode && (order.status === 'OPEN' || order.status === 'SENT')"
                   (dragstart)="onDragStart($event, item, order.id_local)"
-                  [class.draggable]="isDragMode && order.status === 'OPEN'"
-                  [class.not-draggable]="order.status !== 'OPEN'">
+                  [class.draggable]="isDragMode && (order.status === 'OPEN' || order.status === 'SENT')"
+                  [class.not-draggable]="order.status !== 'OPEN' && order.status !== 'SENT'">
                   <ion-icon 
-                    *ngIf="isDragMode && order.status === 'OPEN'" 
+                    *ngIf="isDragMode && (order.status === 'OPEN' || order.status === 'SENT')" 
                     name="swap-horizontal-outline" 
                     slot="start"
                     class="drag-handle"></ion-icon>
@@ -86,6 +86,18 @@
 
               <!-- Acciones -->
               <div class="order-actions">
+                <!-- Botón eliminar cuenta vacía -->
+                <ion-button 
+                  *ngIf="order.items.length === 0 && ordersWithItems.length > 1" 
+                  (click)="confirmDeleteOrder(order)" 
+                  expand="block" 
+                  fill="outline"
+                  color="danger"
+                  size="small">
+                  <ion-icon slot="start" name="trash-outline"></ion-icon>
+                  Eliminar Vacía
+                </ion-button>
+
                 <ion-button 
                   *ngIf="order.status === 'OPEN'" 
                   (click)="editOrder(order)" 

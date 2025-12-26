@@ -21,7 +21,6 @@ ion-header {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 16px;
   overflow: hidden;
-  border: 2px solid transparent;
   min-height: 200px;
   display: flex;
   flex-direction: column;
@@ -29,7 +28,6 @@ ion-header {
   &:hover {
     transform: translateY(-6px);
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6);
-    border-color: var(--ion-color-primary);
   }
   
   &:active {
@@ -47,7 +45,6 @@ ion-header {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-bottom: 1px solid #3a3a3a;
 
     ion-icon {
       font-size: 48px;
@@ -120,7 +117,7 @@ ion-header {
   .order-header {
     padding: 16px;
     background: #252525;
-    border-bottom: 1px solid #3a3a3a;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
     display: flex;
     justify-content: space-between;
     align-items: center;

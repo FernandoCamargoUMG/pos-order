@@ -43,12 +43,10 @@
 .order-card {
   margin: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 2px solid transparent;
   transition: all 0.3s ease;
   --background: #1e1e1e;
 
   &.drag-mode {
-    border-color: #ffa726;
     cursor: move;
 
     &:hover {
@@ -91,7 +89,7 @@
       padding: 8px;
       margin: 4px 0;
       border-radius: 8px;
-      border: 2px dashed #ffa726;
+      background: rgba(255, 167, 38, 0.05);
 
       &:hover {
         background: rgba(255, 167, 38, 0.1);
@@ -141,8 +139,9 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
-  border-top: 2px solid #3a3a3a;
   margin-bottom: 12px;
+  margin-top: 12px;
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.05);
 
   strong {
     font-size: 1.1rem;
