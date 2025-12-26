@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { Capacitor } from '@capacitor/core';
-import { DB_NAME, DB_SCHEMA, INITIAL_DATA } from './schema';
+import { DB_NAME } from './schema';
 import { PRODUCTION_DATA, DEMO_DATA } from './demo-data';
 import { environment } from '../../../environments/environment';
+import { MIGRATIONS, getLatestMigrationVersion } from './migrations';
 
 @Injectable({
     providedIn: 'root'
@@ -26,10 +27,6 @@ export class DatabaseService {
 
         try {
             console.log('Inicializando base de datos...');
-            
-            // NO copiar desde assets - siempre crear desde schema
-            // (comentado porque no hay DB precargada)
-            // const result = await this.sqlite.copyFromAssets();
 
             // Verificar si la conexión ya existe
             const isConnection = await this.sqlite.isConnection(DB_NAME, false);
@@ -48,32 +45,77 @@ export class DatabaseService {
 
             await this.db.open();
 
-            // Solo crear esquema si la DB no existía
-            const tables = await this.db.query('SELECT name FROM sqlite_master WHERE type="table"');
-            if (!tables.values || tables.values.length === 0) {
-                console.log('Creando esquema inicial...');
-                await this.db.execute(DB_SCHEMA);
-                await this.db.execute(INITIAL_DATA);
-
-                // En producción: solo admin universal
-                // En desarrollo: productos, mesas y usuarios demo
-                if (environment.production) {
-                    await this.db.execute(PRODUCTION_DATA);
-                    console.log('BD de PRODUCCIÓN: Solo admin universal (PIN: 2024)');
-                } else {
-                    await this.db.execute(PRODUCTION_DATA); // Admin universal
-                    await this.db.execute(DEMO_DATA);       // + Datos de prueba
-                    console.log('BD de DESARROLLO: Admin + datos demo cargados');
-                }
-            } else {
-                console.log('Base de datos ya existe con', tables.values.length, 'tablas');
-                console.log('Usando DB desde assets');
-            }
+            // Ejecutar migraciones pendientes
+            await this.runMigrations();
 
             this.isInitialized = true;
-            console.log('Base de datos inicializada correctamente');
+            console.log('✅ Base de datos inicializada correctamente');
         } catch (error) {
-            console.error('Error al inicializar la base de datos:', error);
+            console.error('❌ Error al inicializar la base de datos:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Ejecuta todas las migraciones pendientes
+     */
+    private async runMigrations(): Promise<void> {
+        try {
+            // Obtener versión actual de la BD
+            let currentVersion = 0;
+            try {
+                const result = await this.db.query(
+                    'SELECT MAX(version) as version FROM schema_migrations'
+                );
+                currentVersion = result.values?.[0]?.version || 0;
+            } catch (e) {
+                // Tabla no existe, es primera vez
+                console.log('Primera inicialización de BD');
+            }
+
+            const latestVersion = getLatestMigrationVersion();
+            console.log(`📊 Migraciones - Actual: ${currentVersion}, Última: ${latestVersion}`);
+
+            // Aplicar migraciones pendientes
+            const pendingMigrations = MIGRATIONS.filter(m => m.version > currentVersion);
+            
+            if (pendingMigrations.length === 0) {
+                console.log('✅ Base de datos actualizada, no hay migraciones pendientes');
+                return;
+            }
+
+            console.log(`🔄 Aplicando ${pendingMigrations.length} migración(es)...`);
+
+            for (const migration of pendingMigrations) {
+                console.log(`  ⏳ Aplicando migración ${migration.version}: ${migration.name}`);
+                
+                // Ejecutar SQL de la migración
+                await this.db.execute(migration.up);
+                
+                // Registrar migración aplicada
+                await this.db.run(
+                    'INSERT INTO schema_migrations (version, name) VALUES (?, ?)',
+                    [migration.version, migration.name]
+                );
+                
+                console.log(`  ✅ Migración ${migration.version} aplicada`);
+            }
+
+            // Cargar datos iniciales solo en la primera migración
+            if (currentVersion === 0) {
+                if (environment.production) {
+                    await this.db.execute(PRODUCTION_DATA);
+                    console.log('📦 BD de PRODUCCIÓN: Solo admin universal (PIN: 2024)');
+                } else {
+                    await this.db.execute(PRODUCTION_DATA);
+                    await this.db.execute(DEMO_DATA);
+                    console.log('📦 BD de DESARROLLO: Admin + datos demo cargados');
+                }
+            }
+
+            console.log(`✅ Base de datos actualizada a versión ${latestVersion}`);
+        } catch (error) {
+            console.error('❌ Error ejecutando migraciones:', error);
             throw error;
         }
     }

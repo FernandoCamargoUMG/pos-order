@@ -1,0 +1,199 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/admin"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Configuración de Impresora</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+
+  <!-- Estado de Conexión -->
+  <ion-card>
+    <ion-card-header>
+      <ion-card-title>
+        <ion-icon name="bluetooth-outline"></ion-icon>
+        Estado de Conexión
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-item lines="none">
+        <ion-icon 
+          [name]="isConnected ? 'checkmark-circle' : 'close-circle'" 
+          [color]="isConnected ? 'success' : 'danger'" 
+          slot="start">
+        </ion-icon>
+        <ion-label>
+          <h2>{{ isConnected ? 'Conectado' : 'Desconectado' }}</h2>
+          <p *ngIf="config.deviceName">{{ config.deviceName }}</p>
+          <p *ngIf="!config.deviceName && !isConnected">No hay impresora conectada</p>
+        </ion-label>
+        <ion-button 
+          *ngIf="isConnected" 
+          fill="outline" 
+          color="danger" 
+          size="small"
+          (click)="disconnectPrinter()">
+          Desconectar
+        </ion-button>
+      </ion-item>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Modo Simulación -->
+  <ion-card>
+    <ion-card-header>
+      <ion-card-title>
+        <ion-icon name="settings"></ion-icon>
+        Modo Desarrollo
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-item>
+        <ion-icon name="document" slot="start"></ion-icon>
+        <ion-label>
+          <h2>Modo Simulación</h2>
+          <p>Muestra tickets en consola sin imprimir</p>
+        </ion-label>
+        <ion-toggle 
+          [(ngModel)]="config.simulationMode"
+          (ionChange)="toggleSimulationMode($event)"
+          [checked]="config.simulationMode">
+        </ion-toggle>
+      </ion-item>
+      
+      <div class="info-box" *ngIf="config.simulationMode">
+        <p>
+          <ion-icon name="information-circle" color="primary"></ion-icon>
+          El modo simulación está activo. Los tickets se mostrarán en la consola del desarrollador.
+          Conecta una impresora física y desactiva este modo para imprimir realmente.
+        </p>
+      </div>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Buscar Impresoras -->
+  <ion-card *ngIf="!config.simulationMode">
+    <ion-card-header>
+      <ion-card-title>
+        <ion-icon name="search-outline"></ion-icon>
+        Buscar Impresoras
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-button 
+        expand="block" 
+        (click)="scanForPrinters()"
+        [disabled]="isScanning">
+        <ion-icon name="bluetooth-outline" slot="start"></ion-icon>
+        {{ isScanning ? 'Buscando...' : 'Buscar Impresoras Bluetooth' }}
+        <ion-spinner *ngIf="isScanning" slot="end"></ion-spinner>
+      </ion-button>
+
+      <ion-list *ngIf="availablePrinters.length > 0">
+        <ion-item 
+          *ngFor="let printer of availablePrinters"
+          button
+          (click)="connectToPrinter(printer)">
+          <ion-icon name="print-outline" slot="start"></ion-icon>
+          <ion-label>
+            <h2>{{ printer.name || 'Impresora sin nombre' }}</h2>
+            <p>{{ printer.deviceId }}</p>
+          </ion-label>
+          <ion-badge 
+            *ngIf="config.deviceId === printer.deviceId" 
+            color="success">
+            Actual
+          </ion-badge>
+        </ion-item>
+      </ion-list>
+
+      <div class="info-box" *ngIf="!isScanning && availablePrinters.length === 0">
+        <p>
+          <ion-icon name="information-circle" color="warning"></ion-icon>
+          No se encontraron impresoras. Asegúrate de:
+        </p>
+        <ul>
+          <li>La impresora esté encendida</li>
+          <li>El Bluetooth esté activado en tu dispositivo</li>
+          <li>La impresora esté en modo emparejamiento</li>
+        </ul>
+      </div>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Configuración de Impresión -->
+  <ion-card>
+    <ion-card-header>
+      <ion-card-title>
+        <ion-icon name="settings"></ion-icon>
+        Parámetros de Impresión
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-list>
+        <ion-item>
+          <ion-label position="stacked">Tamaño de Papel</ion-label>
+          <ion-select 
+            [(ngModel)]="config.paperWidth"
+            (ionChange)="saveConfig()">
+            <ion-select-option [value]="58">58mm</ion-select-option>
+            <ion-select-option [value]="80">80mm</ion-select-option>
+          </ion-select>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">Copias por Ticket (Comanda Cocina)</ion-label>
+          <ion-select 
+            [(ngModel)]="config.copies"
+            (ionChange)="saveConfig()">
+            <ion-select-option [value]="1">1 copia</ion-select-option>
+            <ion-select-option [value]="2">2 copias</ion-select-option>
+            <ion-select-option [value]="3">3 copias</ion-select-option>
+          </ion-select>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">Encabezado Personalizado</ion-label>
+          <ion-input
+            [(ngModel)]="config.header"
+            (ionBlur)="saveConfig()"
+            placeholder="Ej: RESTAURANTE HAMBURGUESAS">
+          </ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">Pie de Página</ion-label>
+          <ion-textarea
+            [(ngModel)]="config.footer"
+            (ionBlur)="saveConfig()"
+            placeholder="Ej: Gracias por su preferencia"
+            [rows]="2">
+          </ion-textarea>
+        </ion-item>
+      </ion-list>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Prueba de Impresión -->
+  <ion-card>
+    <ion-card-header>
+      <ion-card-title>
+        <ion-icon name="print-outline"></ion-icon>
+        Prueba de Impresión
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <p>Imprime un ticket de prueba para verificar que todo funciona correctamente.</p>
+      <ion-button 
+        expand="block" 
+        color="success"
+        (click)="printTestTicket()">
+        <ion-icon name="print-outline" slot="start"></ion-icon>
+        Imprimir Ticket de Prueba
+      </ion-button>
+    </ion-card-content>
+  </ion-card>
+
+</ion-content>

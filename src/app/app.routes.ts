@@ -57,6 +57,16 @@ export const routes: Routes = [
     canActivate: [adminGuard]  // Solo admin
   },
   {
+    path: 'sales-history',
+    loadComponent: () => import('./features/sales-history/sales-history.page').then((m) => m.SalesHistoryPage),
+    canActivate: [adminGuard]  // Solo admin
+  },
+  {
+    path: 'printer-config',
+    loadComponent: () => import('./features/config/printer-config/printer-config.page').then((m) => m.PrinterConfigPage),
+    canActivate: [adminGuard]  // Solo admin
+  },
+  {
     path: 'home',
     loadComponent: () => import('./home/home.page').then((m) => m.HomePage),
   },

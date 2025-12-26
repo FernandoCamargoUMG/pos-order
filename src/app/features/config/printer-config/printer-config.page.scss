@@ -1,0 +1,136 @@
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+ion-card {
+  margin: 16px 0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+ion-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  
+  ion-icon {
+    font-size: 24px;
+  }
+}
+
+ion-card-content {
+  padding: 16px;
+}
+
+// Info boxes
+.info-box {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(var(--ion-color-primary-rgb), 0.1);
+  border-radius: 8px;
+  border-left: 4px solid var(--ion-color-primary);
+  
+  p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    
+    ion-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+  }
+  
+  ul {
+    margin: 8px 0 0 28px;
+    padding: 0;
+    font-size: 13px;
+    
+    li {
+      margin: 4px 0;
+    }
+  }
+  
+  &.warning {
+    background: rgba(var(--ion-color-warning-rgb), 0.1);
+    border-left-color: var(--ion-color-warning);
+  }
+}
+
+// Lista de impresoras
+ion-list {
+  margin-top: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+// Botones
+ion-button {
+  --border-radius: 8px;
+  margin: 8px 0;
+  
+  ion-spinner {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+// Items
+ion-item {
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --inner-padding-end: 12px;
+  
+  ion-label {
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    p {
+      font-size: 13px;
+      color: var(--ion-color-medium);
+    }
+  }
+  
+  ion-icon {
+    font-size: 24px;
+    margin-right: 12px;
+  }
+}
+
+// Badges
+ion-badge {
+  --padding-start: 8px;
+  --padding-end: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+// Inputs y selects
+ion-input,
+ion-textarea,
+ion-select {
+  --background: var(--ion-item-background);
+  --padding-start: 12px;
+  --padding-end: 12px;
+  margin-top: 8px;
+}
+
+// Estado de conexión
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  
+  ion-icon {
+    font-size: 32px;
+  }
+}

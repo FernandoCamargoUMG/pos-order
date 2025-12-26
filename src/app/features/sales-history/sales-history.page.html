@@ -1,0 +1,113 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Historial de Ventas</ion-title>
+  </ion-toolbar>
+  
+  <ion-toolbar>
+    <ion-segment [(ngModel)]="selectedPeriod" (ionChange)="onPeriodChange($event)" mode="ios">
+      <ion-segment-button value="today">
+        <ion-label>Hoy</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="week">
+        <ion-label>7 Días</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="month">
+        <ion-label>30 Días</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="all">
+        <ion-label>Todo</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <ion-refresher slot="fixed" (ionRefresh)="onRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Resumen de Ventas -->
+  <div class="sales-summary">
+    <ion-card>
+      <ion-card-content>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <ion-icon name="cash-outline" color="success"></ion-icon>
+            <div class="summary-info">
+              <div class="summary-label">Total Ventas</div>
+              <div class="summary-value">{{ formatPrice(totalSales) }}</div>
+            </div>
+          </div>
+          
+          <div class="summary-item">
+            <ion-icon name="receipt-outline" color="primary"></ion-icon>
+            <div class="summary-info">
+              <div class="summary-label">Órdenes</div>
+              <div class="summary-value">{{ totalOrders }}</div>
+            </div>
+          </div>
+          
+          <div class="summary-item">
+            <ion-icon name="stats-chart-outline" color="warning"></ion-icon>
+            <div class="summary-info">
+              <div class="summary-label">Items Vendidos</div>
+              <div class="summary-value">{{ totalItems }}</div>
+            </div>
+          </div>
+        </div>
+      </ion-card-content>
+    </ion-card>
+  </div>
+
+  <!-- Lista de Órdenes -->
+  <div class="orders-list" *ngIf="filteredOrders.length > 0">
+    <h3 class="section-title">Órdenes Completadas</h3>
+    
+    <ion-card *ngFor="let order of filteredOrders" class="order-card">
+      <ion-card-header>
+        <div class="order-header">
+          <div class="order-info">
+            <ion-card-title>{{ order.table_name }}</ion-card-title>
+            <p class="order-time">
+              <ion-icon name="time-outline"></ion-icon>
+              {{ formatDate(order.closed_at) }}
+            </p>
+          </div>
+          <div class="order-total">
+            <div class="total-label">Total</div>
+            <div class="total-amount">{{ formatPrice(order.total) }}</div>
+          </div>
+        </div>
+      </ion-card-header>
+      
+      <ion-card-content>
+        <ion-list class="items-list">
+          <ion-item *ngFor="let item of order.items" lines="none">
+            <ion-label>
+              <h3>{{ item.quantity }}x {{ item.product_name }}</h3>
+              <p *ngIf="item.modifiers && item.modifiers.length > 0" class="modifiers">
+                {{ item.modifiers.join(', ') }}
+              </p>
+              <p *ngIf="item.notes" class="notes">{{ item.notes }}</p>
+            </ion-label>
+            <ion-badge slot="end" color="light">
+              {{ formatPrice(item.price * item.quantity) }}
+            </ion-badge>
+          </ion-item>
+        </ion-list>
+      </ion-card-content>
+    </ion-card>
+  </div>
+
+  <!-- Estado Vacío -->
+  <div class="empty-state" *ngIf="filteredOrders.length === 0">
+    <ion-icon name="receipt-outline" color="medium"></ion-icon>
+    <h3>No hay ventas</h3>
+    <p>No se encontraron órdenes completadas en este período</p>
+  </div>
+</ion-content>

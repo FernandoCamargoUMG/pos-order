@@ -62,7 +62,7 @@
     </div>
 
     <div class="accounts-list">
-      <ion-card *ngFor="let order of existingOrders" class="account-card" button (click)="viewAccount(order)">
+      <ion-card *ngFor="let order of existingOrders" class="account-card">
         <ion-card-header>
           <div class="account-header">
             <div>
@@ -78,6 +78,25 @@
           <div class="account-items">
             <p class="items-count">{{ order.items?.length || 0 }} items</p>
             <p class="account-total">Q{{ order.total?.toFixed(2) || '0.00' }}</p>
+          </div>
+          
+          <!-- Botones de acción para cada cuenta -->
+          <div class="account-actions-buttons">
+            <ion-button 
+              size="small" 
+              fill="outline" 
+              (click)="viewAccount(order)">
+              <ion-icon slot="start" name="eye-outline"></ion-icon>
+              Ver
+            </ion-button>
+            <ion-button 
+              size="small" 
+              color="primary" 
+              (click)="printBillForOrder(order)"
+              *ngIf="order.status === 'SENT' || order.status === 'PAYING'">
+              <ion-icon slot="start" name="document-text-outline"></ion-icon>
+              Cuenta
+            </ion-button>
           </div>
         </ion-card-content>
       </ion-card>
@@ -165,7 +184,7 @@
       <div class="total-amount">Q{{ getTotal() | number:'1.2-2' }}</div>
     </div>
 
-    <!-- Botón de Enviar integrado -->
+    <!-- Botón de Enviar Orden -->
     <ion-button expand="block" color="success" size="large" (click)="sendOrder()" class="send-button">
       <ion-icon slot="start" name="send-outline"></ion-icon>
       {{ editingOrderId ? 'Actualizar Orden' : 'Enviar Orden' }}

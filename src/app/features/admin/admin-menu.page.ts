@@ -2,33 +2,35 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import {
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonContent,
-  IonButtons,
-  IonButton,
-  IonIcon,
-  IonGrid,
-  IonRow,
-  IonCol,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-  Platform
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonButton,
+    IonIcon,
+    IonGrid,
+    IonRow,
+    IonCol,
+    IonCard,
+    IonCardHeader,
+    IonCardTitle,
+    IonCardContent,
+    Platform
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  logOutOutline,
-  pricetagOutline,
-  peopleOutline,
-  restaurantOutline,
-  gridOutline,
-  statsChartOutline,
-  settingsOutline,
-  bagAddOutline,
-  optionsOutline
+    logOutOutline,
+    pricetagOutline,
+    peopleOutline,
+    restaurantOutline,
+    gridOutline,
+    statsChartOutline,
+    settingsOutline,
+    bagAddOutline,
+    optionsOutline,
+    cashOutline,
+    printOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../core/services/auth.service';
 import { App } from '@capacitor/app';
@@ -95,9 +97,16 @@ export class AdminMenuPage implements OnInit, OnDestroy {
             description: 'Pantalla de cocina'
         },
         {
+            title: 'Historial de Ventas',
+            icon: 'cash-outline',
+            color: 'success',
+            route: '/sales-history',
+            description: 'Reporte de ventas y órdenes'
+        },
+        {
             title: 'Usuarios',
             icon: 'people-outline',
-            color: 'success',
+            color: 'warning',
             route: '/users',
             description: 'Gestionar personal'
         },
@@ -114,6 +123,13 @@ export class AdminMenuPage implements OnInit, OnDestroy {
             color: 'medium',
             route: '/settings',
             description: 'Ajustes del sistema'
+        },
+        {
+            title: 'Impresora',
+            icon: 'print-outline',
+            color: 'dark',
+            route: '/printer-config',
+            description: 'Configurar impresora térmica'
         }
     ];
 
@@ -131,7 +147,9 @@ export class AdminMenuPage implements OnInit, OnDestroy {
             statsChartOutline,
             settingsOutline,
             bagAddOutline,
-            optionsOutline
+            optionsOutline,
+            cashOutline,
+            printOutline
         });
     }
 

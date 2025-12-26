@@ -1,5 +1,8 @@
 export const DB_NAME = 'hamburger_pos.db';
-export const DB_VERSION = 1;
+
+// NOTA: Ya no se usa DB_VERSION ni DB_SCHEMA directamente.
+// El esquema ahora se maneja con migraciones en migrations.ts
+// Para hacer cambios en la BD, agregar una nueva migración en migrations.ts
 
 export const DB_SCHEMA = `
 CREATE TABLE IF NOT EXISTS settings (

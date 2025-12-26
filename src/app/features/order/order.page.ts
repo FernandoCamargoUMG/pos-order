@@ -37,6 +37,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { OrderService } from '../../core/services/order.service';
+import { PrinterService, OrderPrint } from '../../core/services/printer.service';
 import {
   arrowBackOutline,
   addOutline,
@@ -121,6 +122,7 @@ export class OrderPage implements OnInit, OnDestroy {
     private productService: ProductService,
     private tableService: TableService,
     private orderService: OrderService,
+    private printerService: PrinterService,
     private modalController: ModalController,
     private alertController: AlertController,
     private toastController: ToastController,
@@ -490,6 +492,14 @@ export class OrderPage implements OnInit, OnDestroy {
       // Esto actualiza el status y el campo updated_at con la hora actual
       await this.orderService.updateOrderStatus(orderId, 'SENT');
 
+      // IMPRIMIR COMANDA DE COCINA automáticamente
+      try {
+        await this.printKitchenOrder(orderId, orderItemsData);
+      } catch (printError) {
+        console.error('Error al imprimir comanda:', printError);
+        // No bloqueamos el flujo si falla la impresión
+      }
+
       const alert = await this.alertController.create({
         header: isUpdate ? 'Orden actualizada' : 'Orden enviada',
         message: isUpdate ? 'La orden ha sido actualizada correctamente.' : 'La orden ha sido enviada a cocina correctamente.',
@@ -517,6 +527,137 @@ export class OrderPage implements OnInit, OnDestroy {
         buttons: ['OK']
       });
       await alert.present();
+    }
+  }
+
+  /**
+   * Imprime comanda de cocina (sin precios)
+   */
+  private async printKitchenOrder(orderId: string, orderItemsData: any[]): Promise<void> {
+    const currentUser = JSON.parse(localStorage.getItem('current_user') || '{}');
+    
+    const orderPrint: OrderPrint = {
+      orderNumber: orderId,
+      tableName: this.table?.name || `Mesa ${this.tableId}`,
+      waiterName: currentUser.name || 'Mesero',
+      date: new Date(),
+      items: orderItemsData.map(item => ({
+        name: item.productName,
+        quantity: item.quantity,
+        price: item.price,
+        modifiers: item.modifiers,
+        notes: item.notes
+      }))
+    };
+
+    await this.printerService.printKitchenOrder(orderPrint);
+  }
+
+  /**
+   * Imprime pre-cuenta para cliente (con precios)
+   */
+  async printBill(): Promise<void> {
+    if (this.orderItems.length === 0) {
+      const toast = await this.toastController.create({
+        message: 'No hay items en la orden para imprimir',
+        duration: 3000,
+        position: 'bottom',
+        color: 'warning',
+        cssClass: 'custom-toast'
+      });
+      await toast.present();
+      return;
+    }
+
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('current_user') || '{}');
+      const total = this.getTotal();
+      const subtotal = total; // Por ahora sin impuestos
+
+      const orderPrint: OrderPrint = {
+        orderNumber: this.editingOrderId || 'PRE-CUENTA',
+        tableName: this.table?.name || `Mesa ${this.tableId}`,
+        waiterName: currentUser.name || 'Mesero',
+        date: new Date(),
+        items: this.orderItems.map(item => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          price: item.product.price,
+          modifiers: item.modifiers,
+          notes: item.notes
+        })),
+        subtotal,
+        total,
+        status: 'PENDING'
+      };
+
+      await this.printerService.printBill(orderPrint);
+      
+      const toast = await this.toastController.create({
+        message: 'Pre-cuenta impresa exitosamente',
+        duration: 3000,
+        position: 'bottom',
+        color: 'success',
+        cssClass: 'custom-toast'
+      });
+      await toast.present();
+    } catch (error) {
+      console.error('Error printing bill:', error);
+      const toast = await this.toastController.create({
+        message: 'Error al imprimir pre-cuenta',
+        duration: 3000,
+        position: 'bottom',
+        color: 'danger',
+        cssClass: 'custom-toast'
+      });
+      await toast.present();
+    }
+  }
+
+  /**
+   * Imprime pre-cuenta para una orden específica (desde vista de cuentas)
+   */
+  async printBillForOrder(order: any): Promise<void> {
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('current_user') || '{}');
+
+      const orderPrint: OrderPrint = {
+        orderNumber: order.id_local,
+        tableName: this.table?.name || `Mesa ${this.tableId}`,
+        waiterName: currentUser.name || 'Mesero',
+        date: new Date(order.created_at),
+        items: order.items?.map((item: any) => ({
+          name: item.product_name || item.productName,
+          quantity: item.quantity,
+          price: item.price,
+          modifiers: item.modifiers || [],
+          notes: item.notes
+        })) || [],
+        subtotal: order.total,
+        total: order.total,
+        status: order.status === 'PAYING' ? 'PENDING' : 'PENDING'
+      };
+
+      await this.printerService.printBill(orderPrint);
+      
+      const toast = await this.toastController.create({
+        message: 'Cuenta impresa exitosamente',
+        duration: 3000,
+        position: 'bottom',
+        color: 'success',
+        cssClass: 'custom-toast'
+      });
+      await toast.present();
+    } catch (error) {
+      console.error('Error printing bill for order:', error);
+      const toast = await this.toastController.create({
+        message: 'Error al imprimir cuenta',
+        duration: 3000,
+        position: 'bottom',
+        color: 'danger',
+        cssClass: 'custom-toast'
+      });
+      await toast.present();
     }
   }
 
