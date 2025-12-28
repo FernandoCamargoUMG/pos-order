@@ -1,106 +1,107 @@
 ::ng-deep {
-  .alert-style-modal-wrapper {
-    .modal-wrapper {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 90%;
-      max-width: 280px;
-      height: auto;
-      border-radius: 14px;
-      overflow: hidden;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-    }
+    .alert-style-modal-wrapper {
+        .modal-wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 280px;
+            height: auto;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        }
 
-    .ion-page {
-      position: relative;
-      display: block;
-      height: auto;
+        .ion-page {
+            position: relative;
+            display: block;
+            height: auto;
+        }
     }
-  }
 }
 
 .alert-style-modal {
-  background: var(--ion-background-color);
-  border-radius: 14px;
-  padding: 0;
-  width: 100%;
-  height: auto;
+    background: var(--ion-background-color);
+    border-radius: 14px;
+    padding: 0;
+    width: 100%;
+    height: auto;
 }
 
 .alert-header {
-  padding: 20px 16px 10px 16px;
-  text-align: center;
+    padding: 20px 16px 10px 16px;
+    text-align: center;
 
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-    color: var(--ion-color-primary);
-  }
+    h2 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--ion-color-primary);
+    }
 
-  .alert-subheader {
-    margin: 4px 0 0 0;
-    font-size: 13px;
-    color: var(--ion-color-medium);
-  }
+    .alert-subheader {
+        margin: 4px 0 0 0;
+        font-size: 13px;
+        color: var(--ion-color-medium);
+    }
 }
 
 .alert-content {
-  padding: 10px 16px 20px 16px;
+    padding: 10px 16px 20px 16px;
 }
 
 .alert-input-item {
-  --background: transparent;
-  --padding-start: 0;
-  --padding-end: 0;
-  --inner-padding-end: 0;
-  margin-bottom: 8px;
+    --background: transparent;
+    --padding-start: 0;
+    --padding-end: 0;
+    --inner-padding-end: 0;
+    margin-bottom: 8px;
 
-  ion-input, ion-select {
-    --background: var(--ion-color-step-150) !important;
-    --color: var(--ion-text-color) !important;
-    --padding-start: 10px;
-    --padding-end: 10px;
-    --padding-top: 10px;
-    --padding-bottom: 10px;
-    border: 1px solid var(--ion-color-step-300);
-    border-radius: 8px;
-    font-size: 15px;
-    min-height: 42px;
-  }
+    ion-input,
+    ion-select {
+        --background: var(--ion-color-step-150) !important;
+        --color: var(--ion-text-color) !important;
+        --padding-start: 10px;
+        --padding-end: 10px;
+        --padding-top: 10px;
+        --padding-bottom: 10px;
+        border: 1px solid var(--ion-color-step-300);
+        border-radius: 8px;
+        font-size: 15px;
+        min-height: 42px;
+    }
 
-  ion-select {
-    width: 100%;
-  }
+    ion-select {
+        width: 100%;
+    }
 }
 
 .alert-buttons {
-  display: flex;
-  border-top: 0.5px solid var(--ion-color-step-200);
+    display: flex;
+    border-top: 0.5px solid var(--ion-color-step-200);
 
-  .alert-button {
-    flex: 1;
-    background: transparent;
-    border: none;
-    padding: 14px;
-    font-size: 17px;
-    cursor: pointer;
-    color: var(--ion-color-primary);
-    font-weight: 400;
-    transition: background 0.2s;
+    .alert-button {
+        flex: 1;
+        background: transparent;
+        border: none;
+        padding: 14px;
+        font-size: 17px;
+        cursor: pointer;
+        color: var(--ion-color-primary);
+        font-weight: 400;
+        transition: background 0.2s;
 
-    &:active {
-      background: var(--ion-color-step-100);
+        &:active {
+            background: var(--ion-color-step-100);
+        }
+
+        &:not(:last-child) {
+            border-right: 0.5px solid var(--ion-color-step-200);
+        }
+
+        &.alert-button-confirm {
+            font-weight: 600;
+        }
     }
-
-    &:not(:last-child) {
-      border-right: 0.5px solid var(--ion-color-step-200);
-    }
-
-    &.alert-button-confirm {
-      font-weight: 600;
-    }
-  }
 }

@@ -1,50 +1,37 @@
 <div class="alert-style-modal">
-  <div class="alert-header">
-    <h2>Editar Usuario</h2>
-    <p class="alert-subheader">{{ user.username }}</p>
-  </div>
+    <div class="alert-header">
+        <h2>Editar Usuario</h2>
+        <p class="alert-subheader">{{ user.username }}</p>
+    </div>
 
-  <div class="alert-content">
-    <ion-item lines="none" class="alert-input-item">
-      <ion-input 
-        [(ngModel)]="username" 
-        type="text" 
-        placeholder="Nombre de usuario"
-        autocapitalize="off"
-        class="alert-input">
-      </ion-input>
-    </ion-item>
+    <div class="alert-content">
+        <ion-item lines="none" class="alert-input-item">
+            <ion-input [(ngModel)]="username" type="text" placeholder="Nombre de usuario" autocapitalize="off"
+                class="alert-input">
+            </ion-input>
+        </ion-item>
 
-    <ion-item lines="none" class="alert-input-item">
-      <ion-input 
-        [(ngModel)]="pin" 
-        type="tel" 
-        placeholder="Nuevo PIN (dejar vacío para mantener)"
-        maxlength="4"
-        pattern="[0-9]*"
-        class="alert-input">
-      </ion-input>
-    </ion-item>
+        <ion-item lines="none" class="alert-input-item">
+            <ion-input [(ngModel)]="pin" type="tel" placeholder="Nuevo PIN (dejar vacío para mantener)" maxlength="4"
+                pattern="[0-9]*" class="alert-input">
+            </ion-input>
+        </ion-item>
 
-    <ion-item lines="none" class="alert-input-item">
-      <ion-select 
-        [(ngModel)]="role_id" 
-        interface="alert"
-        placeholder="Seleccionar rol"
-        class="alert-select">
-        <ion-select-option *ngFor="let role of roles" [value]="role.id">
-          {{ role.name }}
-        </ion-select-option>
-      </ion-select>
-    </ion-item>
-  </div>
+        <ion-item lines="none" class="alert-input-item">
+            <ion-select [(ngModel)]="role_id" interface="alert" placeholder="Seleccionar rol" class="alert-select">
+                <ion-select-option *ngFor="let role of roles" [value]="role.id">
+                    {{ role.name }}
+                </ion-select-option>
+            </ion-select>
+        </ion-item>
+    </div>
 
-  <div class="alert-buttons">
-    <button class="alert-button alert-button-cancel" (click)="dismiss()">
-      Cancelar
-    </button>
-    <button class="alert-button alert-button-confirm" (click)="save()">
-      Guardar
-    </button>
-  </div>
+    <div class="alert-buttons">
+        <button class="alert-button alert-button-cancel" (click)="dismiss()">
+            Cancelar
+        </button>
+        <button class="alert-button alert-button-confirm" (click)="save()">
+            Guardar
+        </button>
+    </div>
 </div>

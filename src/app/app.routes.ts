@@ -18,8 +18,7 @@ export const routes: Routes = [
   },
   {
     path: 'debug',
-    loadComponent: () => import('./features/debug/debug.page').then((m) => m.DebugPage),
-    canActivate: [adminGuard]  // Solo admin puede acceder al debug
+    loadComponent: () => import('./features/debug/debug.page').then((m) => m.DebugPage)
   },
   {
     path: 'tables',

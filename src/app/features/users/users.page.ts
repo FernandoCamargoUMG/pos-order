@@ -1,5 +1,8 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, LOCALE_ID } from '@angular/core';
+import { CommonModule, registerLocaleData } from '@angular/common';
+import localeEs from '@angular/common/locales/es';
+
+registerLocaleData(localeEs);
 import { FormsModule } from '@angular/forms';
 import { 
   IonContent, IonHeader, IonTitle, IonToolbar, IonButtons, IonBackButton,
@@ -23,6 +26,8 @@ import { EditUserModalComponent } from './edit-user-modal/edit-user-modal.compon
   templateUrl: './users.page.html',
   styleUrls: ['./users.page.scss'],
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [{ provide: LOCALE_ID, useValue: 'es-GT' }],
   imports: [
     IonContent, IonHeader, IonTitle, IonToolbar, IonButtons, IonBackButton,
     IonList, IonItem, IonLabel, IonBadge, IonButton, IonIcon, IonFab,
@@ -31,7 +36,7 @@ import { EditUserModalComponent } from './edit-user-modal/edit-user-modal.compon
     CommonModule, FormsModule
   ]
 })
-export class UsersPage implements OnInit {
+export class UsersPage implements OnInit, OnDestroy {
   users: User[] = [];
   filteredUsers: User[] = [];
   roles: Role[] = [];
@@ -40,6 +45,9 @@ export class UsersPage implements OnInit {
   
   searchTerm = '';
   filterSegment: 'all' | 'active' | 'inactive' = 'active';
+  private searchTimeout: any;
+  private roleInputListener: ((e: Event) => void) | null = null;
+  private roleBadgeColorCache = new Map<number, string>();
   
   stats = {
     total: 0,
@@ -56,7 +64,8 @@ export class UsersPage implements OnInit {
     private modalController: ModalController,
     private loadingController: LoadingController,
     private actionSheetController: ActionSheetController,
-    private router: Router
+    private router: Router,
+    private cdr: ChangeDetectorRef
   ) {
     addIcons({ 
       addOutline, personOutline, createOutline, trashOutline,
@@ -89,11 +98,19 @@ export class UsersPage implements OnInit {
     await loading.present();
 
     try {
-      [this.users, this.roles, this.stats.byRole] = await Promise.all([
-        this.userService.getAllUsers(),
-        this.userService.getRoles(),
-        this.userService.countUsersByRole()
-      ]);
+      // Solo cargar roles una vez (no necesitan recargarse)
+      const promises: Promise<any>[] = [this.userService.getAllUsers()];
+      
+      if (this.roles.length === 0) {
+        promises.push(this.userService.getRoles());
+      }
+
+      const results = await Promise.all(promises);
+      this.users = results[0];
+      
+      if (results.length > 1) {
+        this.roles = results[1];
+      }
 
       this.updateStats();
       this.filterUsers();
@@ -111,9 +128,25 @@ export class UsersPage implements OnInit {
   }
 
   updateStats() {
+    // Calcular stats en un solo recorrido (más eficiente)
+    let active = 0, inactive = 0;
+    const roleCount = new Map<string, number>();
+    
+    for (const user of this.users) {
+      if (user.active === 1) active++;
+      else inactive++;
+      
+      // Actualizar conteo por rol
+      if (user.role_name) {
+        roleCount.set(user.role_name, (roleCount.get(user.role_name) || 0) + 1);
+      }
+    }
+    
     this.stats.total = this.users.length;
-    this.stats.active = this.users.filter(u => u.active === 1).length;
-    this.stats.inactive = this.users.filter(u => u.active === 0).length;
+    this.stats.active = active;
+    this.stats.inactive = inactive;
+    this.stats.byRole = Array.from(roleCount.entries()).map(([role_name, count]) => ({ role_name, count }));
+    this.cdr.markForCheck();
   }
 
   filterUsers() {
@@ -136,10 +169,23 @@ export class UsersPage implements OnInit {
     }
 
     this.filteredUsers = filtered;
+    this.cdr.markForCheck();
+  }
+
+  // Método optimizado para aplicar filtros sin búsqueda completa
+  applyFilters() {
+    this.updateStats();
+    this.filterUsers();
   }
 
   onSearchChange() {
-    this.filterUsers();
+    // Debounce para evitar filtrar en cada tecla
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
+    }
+    this.searchTimeout = setTimeout(() => {
+      this.filterUsers();
+    }, 300);
   }
 
   onSegmentChange() {
@@ -337,7 +383,18 @@ export class UsersPage implements OnInit {
 
               try {
                 await this.userService.updateUser(user.id_local, updates);
-                await this.loadData();
+                
+                // Actualizar solo el usuario modificado en la lista local (más eficiente)
+                const index = this.users.findIndex(u => u.id_local === user.id_local);
+                if (index !== -1) {
+                  this.users[index] = { ...this.users[index], ...updates };
+                  if (updates.role_id) {
+                    const role = roles.find(r => r.id === updates.role_id);
+                    if (role) this.users[index].role_name = role.name;
+                  }
+                  this.applyFilters();
+                }
+                
                 this.showToast('Usuario actualizado exitosamente', 'success');
               } catch (error: any) {
                 this.showToast(error.message || 'Error al actualizar usuario', 'danger');
@@ -356,8 +413,13 @@ export class UsersPage implements OnInit {
       setTimeout(() => {
         const roleInput = document.getElementById('roleInput');
         if (roleInput) {
+          // Limpiar listener anterior si existe (prevenir memory leaks)
+          if (this.roleInputListener) {
+            roleInput.removeEventListener('click', this.roleInputListener);
+          }
+          
           roleInput.style.cursor = 'pointer';
-          roleInput.addEventListener('click', async (e) => {
+          this.roleInputListener = async (e: Event) => {
             e.preventDefault();
             
             const roleAlert = await this.alertController.create({
@@ -385,12 +447,21 @@ export class UsersPage implements OnInit {
             });
             
             await roleAlert.present();
-          });
+          };
+          
+          roleInput.addEventListener('click', this.roleInputListener);
         }
       }, 100);
     };
 
     await showEditAlert();
+  }
+
+  ngOnDestroy() {
+    // Limpieza al destruir componente
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
+    }
   }
 
   async toggleUserStatus(user: User) {
@@ -419,7 +490,13 @@ export class UsersPage implements OnInit {
                 await this.userService.activateUser(user.id_local);
               }
 
-              await this.loadData();
+              // OPTIMIZACIÓN: Actualizar solo el usuario localmente en lugar de recargar todo
+              const index = this.users.findIndex(u => u.id_local === user.id_local);
+              if (index !== -1) {
+                this.users[index].active = user.active === 1 ? 0 : 1;
+                this.applyFilters(); // Re-filtrar y actualizar estadísticas
+              }
+
               this.showToast(`Usuario ${action}do exitosamente`, 'success');
             } catch (error) {
               this.showToast(`Error al ${action} usuario`, 'danger');
@@ -454,7 +531,14 @@ export class UsersPage implements OnInit {
 
             try {
               await this.userService.deleteUser(user.id_local);
-              await this.loadData();
+              
+              // OPTIMIZACIÓN: Eliminar solo el usuario localmente en lugar de recargar todo
+              const index = this.users.findIndex(u => u.id_local === user.id_local);
+              if (index !== -1) {
+                this.users.splice(index, 1);
+                this.applyFilters(); // Re-filtrar y actualizar estadísticas
+              }
+
               this.showToast('Usuario eliminado permanentemente', 'success');
             } catch (error) {
               this.showToast('Error al eliminar usuario', 'danger');
@@ -469,14 +553,32 @@ export class UsersPage implements OnInit {
     await alert.present();
   }
 
+  // TrackBy function para optimizar ngFor
+  trackByUserId(index: number, user: User): string {
+    return user.id_local;
+  }
+
+  trackByRoleName(index: number, stat: { role_name: string; count: number }): string {
+    return stat.role_name;
+  }
+
+  // Memoización de colores de badge
   getRoleBadgeColor(roleId: number): string {
-    switch (roleId) {
-      case 1: return 'danger';   // Administrador
-      case 2: return 'primary';  // Mesero
-      case 3: return 'warning';  // Cocina
-      case 4: return 'success';  // Cajero
-      default: return 'medium';
+    if (this.roleBadgeColorCache.has(roleId)) {
+      return this.roleBadgeColorCache.get(roleId)!;
     }
+    
+    let color: string;
+    switch (roleId) {
+      case 1: color = 'danger'; break;   // Administrador
+      case 2: color = 'primary'; break;  // Mesero
+      case 3: color = 'warning'; break;  // Cocina
+      case 4: color = 'success'; break;  // Cajero
+      default: color = 'medium';
+    }
+    
+    this.roleBadgeColorCache.set(roleId, color);
+    return color;
   }
 
   private async showToast(message: string, color: string) {
