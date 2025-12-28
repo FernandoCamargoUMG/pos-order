@@ -257,117 +257,140 @@ export class UsersPage implements OnInit {
   }
 
   async editUser(user: User) {
-    // Primero seleccionar el rol
-    const actionSheet = await this.actionSheetController.create({
-      header: 'Selecciona el Rol',
-      buttons: [
-        {
-          text: 'Administrador' + (user.role_id === 1 ? ' ✓' : ''),
-          data: { role_id: 1, role_name: 'Administrador' },
-          cssClass: user.role_id === 1 ? 'action-sheet-selected' : ''
-        },
-        {
-          text: 'Mesero' + (user.role_id === 2 ? ' ✓' : ''),
-          data: { role_id: 2, role_name: 'Mesero' },
-          cssClass: user.role_id === 2 ? 'action-sheet-selected' : ''
-        },
-        {
-          text: 'Cocina' + (user.role_id === 3 ? ' ✓' : ''),
-          data: { role_id: 3, role_name: 'Cocina' },
-          cssClass: user.role_id === 3 ? 'action-sheet-selected' : ''
-        },
-        {
-          text: 'Cajero' + (user.role_id === 4 ? ' ✓' : ''),
-          data: { role_id: 4, role_name: 'Cajero' },
-          cssClass: user.role_id === 4 ? 'action-sheet-selected' : ''
-        },
-        {
-          text: 'Cancelar',
-          role: 'cancel'
-        }
-      ]
-    });
+    let selectedRoleId = user.role_id;
+    const roles = [
+      { id: 1, name: 'Administrador' },
+      { id: 2, name: 'Mesero' },
+      { id: 3, name: 'Cocina' },
+      { id: 4, name: 'Cajero' }
+    ];
 
-    await actionSheet.present();
-    const { data } = await actionSheet.onDidDismiss();
+    const showEditAlert = async () => {
+      const selectedRoleName = roles.find(r => r.id === selectedRoleId)?.name || '';
 
-    if (!data) return; // Usuario canceló
-
-    // Ahora pedir el nombre y PIN
-    const alert = await this.alertController.create({
-      header: 'Editar Usuario',
-      subHeader: `Rol: ${data.role_name}`,
-      cssClass: 'custom-user-alert',
-      inputs: [
-        {
-          name: 'username',
-          type: 'text',
-          placeholder: 'Nombre de usuario',
-          value: user.username,
-          attributes: {
-            autocapitalize: 'off'
+      const alert = await this.alertController.create({
+        header: 'Editar Usuario',
+        subHeader: user.username,
+        cssClass: 'custom-user-alert',
+        inputs: [
+          {
+            name: 'username',
+            type: 'text',
+            placeholder: 'Nombre de usuario',
+            value: user.username,
+            attributes: {
+              autocapitalize: 'off'
+            }
+          },
+          {
+            name: 'pin',
+            type: 'tel',
+            placeholder: 'Nuevo PIN (dejar vacío para mantener)',
+            attributes: {
+              minlength: 4,
+              maxlength: 4,
+              pattern: '[0-9]*'
+            }
+          },
+          {
+            name: 'role_display',
+            type: 'text',
+            placeholder: 'Seleccionar rol',
+            value: selectedRoleName,
+            attributes: {
+              readonly: true,
+              id: 'roleInput'
+            }
           }
-        },
-        {
-          name: 'pin',
-          type: 'tel',
-          placeholder: 'Nuevo PIN (dejar vacío para mantener)',
-          attributes: {
-            minlength: 4,
-            maxlength: 4,
-            pattern: '[0-9]*'
-          }
-        }
-      ],
-      buttons: [
-        {
-          text: 'Cancelar',
-          role: 'cancel',
-          cssClass: 'alert-button-cancel'
-        },
-        {
-          text: 'Guardar',
-          cssClass: 'alert-button-confirm',
-          handler: async (formData) => {
-            const updates: any = {};
-            
-            if (formData.username && formData.username !== user.username) {
-              updates.username = formData.username;
-            }
-            if (formData.pin && formData.pin.length === 4) {
-              updates.pin = formData.pin;
-            }
-            if (data.role_id !== user.role_id) {
-              updates.role_id = data.role_id;
-            }
+        ],
+        buttons: [
+          {
+            text: 'Cancelar',
+            role: 'cancel',
+            cssClass: 'alert-button-cancel'
+          },
+          {
+            text: 'Guardar',
+            cssClass: 'alert-button-confirm',
+            handler: async (formData) => {
+              const updates: any = {};
+              
+              if (formData.username && formData.username !== user.username) {
+                updates.username = formData.username;
+              }
+              if (formData.pin && formData.pin.length === 4) {
+                updates.pin = formData.pin;
+              }
+              if (selectedRoleId !== user.role_id) {
+                updates.role_id = selectedRoleId;
+              }
 
-            if (Object.keys(updates).length === 0) {
-              this.showToast('No hay cambios para guardar', 'warning');
+              if (Object.keys(updates).length === 0) {
+                this.showToast('No hay cambios para guardar', 'warning');
+                return true;
+              }
+
+              const loading = await this.loadingController.create({
+                message: 'Actualizando usuario...'
+              });
+              await loading.present();
+
+              try {
+                await this.userService.updateUser(user.id_local, updates);
+                await this.loadData();
+                this.showToast('Usuario actualizado exitosamente', 'success');
+              } catch (error: any) {
+                this.showToast(error.message || 'Error al actualizar usuario', 'danger');
+              } finally {
+                await loading.dismiss();
+              }
+
               return true;
             }
-
-            const loading = await this.loadingController.create({
-              message: 'Actualizando usuario...'
-            });
-            await loading.present();
-
-            try {
-              await this.userService.updateUser(user.id_local, updates);
-              await this.loadData();
-              this.showToast('Usuario actualizado exitosamente', 'success');
-            } catch (error: any) {
-              this.showToast(error.message || 'Error al actualizar usuario', 'danger');
-            } finally {
-              await loading.dismiss();
-            }
-
-            return true;
           }
-        }
-      ]
-    });
+        ]
+      });
 
-    await alert.present();
+      await alert.present();
+
+      setTimeout(() => {
+        const roleInput = document.getElementById('roleInput');
+        if (roleInput) {
+          roleInput.style.cursor = 'pointer';
+          roleInput.addEventListener('click', async (e) => {
+            e.preventDefault();
+            
+            const roleAlert = await this.alertController.create({
+              header: 'Seleccionar Rol',
+              inputs: roles.map(role => ({
+                type: 'radio' as const,
+                label: role.name,
+                value: role.id,
+                checked: selectedRoleId === role.id
+              })),
+              buttons: [
+                {
+                  text: 'Cancelar',
+                  role: 'cancel'
+                },
+                {
+                  text: 'OK',
+                  handler: (roleId: number) => {
+                    selectedRoleId = roleId;
+                    alert.dismiss();
+                    showEditAlert();
+                  }
+                }
+              ]
+            });
+            
+            await roleAlert.present();
+          });
+        }
+      }, 100);
+    };
+
+    await showEditAlert();
   }
 
   async toggleUserStatus(user: User) {

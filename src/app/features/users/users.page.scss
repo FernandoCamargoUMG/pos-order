@@ -181,6 +181,23 @@ ion-fab-button {
     padding: 12px 20px;
   }
   
+  .alert-radio-group {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  
+  .alert-radio-label {
+    padding: 12px 20px !important;
+    color: var(--ion-text-color) !important;
+    font-size: 16px !important;
+    
+    &.alert-radio-label-checked {
+      color: var(--ion-color-primary) !important;
+      font-weight: 600 !important;
+    }
+  }
+  
   .alert-input {
     border: 2px solid var(--ion-color-step-300) !important;
     border-radius: 12px !important;
