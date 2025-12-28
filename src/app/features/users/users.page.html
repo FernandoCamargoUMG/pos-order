@@ -1,0 +1,154 @@
+<ion-header [translucent]="true">
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tables"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Gestión de Usuarios</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <!-- Estadísticas -->
+  <div class="stats-container">
+    <ion-card class="stat-card">
+      <ion-card-content>
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">Total Usuarios</div>
+      </ion-card-content>
+    </ion-card>
+    
+    <ion-card class="stat-card">
+      <ion-card-content>
+        <div class="stat-value" style="color: var(--ion-color-success)">{{ stats.active }}</div>
+        <div class="stat-label">Activos</div>
+      </ion-card-content>
+    </ion-card>
+    
+    <ion-card class="stat-card">
+      <ion-card-content>
+        <div class="stat-value" style="color: var(--ion-color-danger)">{{ stats.inactive }}</div>
+        <div class="stat-label">Inactivos</div>
+      </ion-card-content>
+    </ion-card>
+  </div>
+
+  <!-- Usuarios por rol -->
+  <ion-card class="roles-card">
+    <ion-card-header>
+      <ion-card-title>
+        <ion-icon name="stats-chart-outline"></ion-icon>
+        Usuarios por Rol
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <div class="roles-stats">
+        <div *ngFor="let stat of stats.byRole" class="role-stat">
+          <span class="role-name">{{ stat.role_name }}</span>
+          <ion-badge color="primary">
+            {{ stat.count }}
+          </ion-badge>
+        </div>
+      </div>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Búsqueda y Filtros -->
+  <div class="search-container">
+    <ion-searchbar 
+      [(ngModel)]="searchTerm"
+      (ionInput)="onSearchChange()"
+      placeholder="Buscar usuario..."
+      animated="true">
+    </ion-searchbar>
+    
+    <ion-segment [(ngModel)]="filterSegment" (ionChange)="onSegmentChange()">
+      <ion-segment-button value="all">
+        <ion-label>Todos</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="active">
+        <ion-label>Activos</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="inactive">
+        <ion-label>Inactivos</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </div>
+
+  <!-- Lista de Usuarios -->
+  <ion-list class="users-list">
+    <ion-item *ngFor="let user of filteredUsers" class="user-item">
+      <ion-icon 
+        slot="start" 
+        name="person-outline" 
+        [color]="user.active === 1 ? 'primary' : 'medium'">
+      </ion-icon>
+      
+      <ion-label>
+        <h2>
+          {{ user.username }}
+          <ion-icon 
+            *ngIf="user.active === 1" 
+            name="checkmark-circle" 
+            color="success"
+            class="status-icon">
+          </ion-icon>
+          <ion-icon 
+            *ngIf="user.active === 0" 
+            name="close-circle" 
+            color="danger"
+            class="status-icon">
+          </ion-icon>
+        </h2>
+        <p>
+          <ion-badge [color]="getRoleBadgeColor(user.role_id)">
+            {{ user.role_name }}
+          </ion-badge>
+          <span class="user-meta">PIN: {{ user.pin }}</span>
+          <span class="user-meta">Creado: {{ user.created_at | date: 'short' }}</span>
+        </p>
+      </ion-label>
+      
+      <ion-button 
+        slot="end" 
+        fill="clear" 
+        (click)="editUser(user)"
+        [disabled]="user.role_id === 1 && user.id_local === currentUser?.id_local">
+        <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+      </ion-button>
+      
+      <ion-button 
+        slot="end" 
+        fill="clear" 
+        [color]="user.active === 1 ? 'warning' : 'success'"
+        (click)="toggleUserStatus(user)"
+        [disabled]="user.role_id === 1 && user.id_local === currentUser?.id_local">
+        <ion-icon 
+          slot="icon-only" 
+          [name]="user.active === 1 ? 'close-circle' : 'checkmark-circle'">
+        </ion-icon>
+      </ion-button>
+      
+      <ion-button 
+        slot="end" 
+        fill="clear" 
+        color="danger"
+        (click)="deleteUser(user)"
+        [disabled]="user.role_id === 1 && user.id_local === currentUser?.id_local">
+        <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+      </ion-button>
+    </ion-item>
+  </ion-list>
+
+  <!-- Mensaje cuando no hay usuarios -->
+  <div *ngIf="filteredUsers.length === 0" class="empty-state">
+    <ion-icon name="person-outline" color="medium"></ion-icon>
+    <p>No se encontraron usuarios</p>
+  </div>
+
+  <!-- Botón flotante para agregar usuario -->
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+    <ion-fab-button (click)="createUser()" color="primary">
+      <ion-icon name="add-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

@@ -1,0 +1,26 @@
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+ion-item {
+  --background: var(--ion-card-background);
+  --color: var(--ion-text-color);
+  margin-bottom: 10px;
+}
+
+ion-label {
+  color: var(--ion-text-color) !important;
+}
+
+ion-input,
+ion-select {
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-step-600);
+}
+
+ion-footer {
+  ion-toolbar {
+    --background: var(--ion-card-background);
+    padding: 10px;
+  }
+}
