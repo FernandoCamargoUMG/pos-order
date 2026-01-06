@@ -13,7 +13,7 @@
   <ion-card>
     <ion-card-header>
       <ion-card-title>
-        <ion-icon name="bluetooth-outline"></ion-icon>
+        <ion-icon [name]="config.connectionType === 'bluetooth' ? 'bluetooth-outline' : 'wifi-outline'"></ion-icon>
         Estado de Conexión
       </ion-card-title>
     </ion-card-header>
@@ -26,8 +26,9 @@
         </ion-icon>
         <ion-label>
           <h2>{{ isConnected ? 'Conectado' : 'Desconectado' }}</h2>
-          <p *ngIf="config.deviceName">{{ config.deviceName }}</p>
-          <p *ngIf="!config.deviceName && !isConnected">No hay impresora conectada</p>
+          <p *ngIf="config.connectionType === 'bluetooth' && config.deviceName">{{ config.deviceName }}</p>
+          <p *ngIf="config.connectionType === 'network' && config.printerIp">{{ config.printerIp }}:{{ config.printerPort }}</p>
+          <p *ngIf="!isConnected">No hay impresora conectada</p>
         </ion-label>
         <ion-button 
           *ngIf="isConnected" 
@@ -41,44 +42,95 @@
     </ion-card-content>
   </ion-card>
 
-  <!-- Modo Simulación -->
+  <!-- Tipo de Conexión -->
   <ion-card>
     <ion-card-header>
       <ion-card-title>
-        <ion-icon name="settings"></ion-icon>
-        Modo Desarrollo
+        <ion-icon name="options-outline"></ion-icon>
+        Tipo de Conexión
       </ion-card-title>
     </ion-card-header>
     <ion-card-content>
-      <ion-item>
-        <ion-icon name="document" slot="start"></ion-icon>
-        <ion-label>
-          <h2>Modo Simulación</h2>
-          <p>Muestra tickets en consola sin imprimir</p>
-        </ion-label>
-        <ion-toggle 
-          [(ngModel)]="config.simulationMode"
-          (ionChange)="toggleSimulationMode($event)"
-          [checked]="config.simulationMode">
-        </ion-toggle>
-      </ion-item>
-      
-      <div class="info-box" *ngIf="config.simulationMode">
+      <ion-segment [(ngModel)]="config.connectionType" (ionChange)="onConnectionTypeChange()">
+        <ion-segment-button value="simulation">
+          <ion-label>Simulación</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="bluetooth">
+          <ion-label>Bluetooth</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="network">
+          <ion-label>WiFi/Red</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Configuración de Red/WiFi -->
+  <ion-card *ngIf="config.connectionType === 'network'">
+    <ion-card-header>
+      <ion-card-title>
+        <ion-icon name="wifi-outline"></ion-icon>
+        Configuración de Red
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <div class="info-box">
         <p>
           <ion-icon name="information-circle" color="primary"></ion-icon>
-          El modo simulación está activo. Los tickets se mostrarán en la consola del desarrollador.
-          Conecta una impresora física y desactiva este modo para imprimir realmente.
+          <strong>Pasos para conectar:</strong><br>
+          1. Conecta la impresora al router WiFi con cable Ethernet<br>
+          2. Encuentra la IP de la impresora (imprime página de configuración)<br>
+          3. Ingresa la IP y puerto abajo<br>
+          4. Presiona "Conectar a Impresora de Red"
+        </p>
+      </div>
+
+      <ion-item>
+        <ion-label position="floating">Dirección IP de la Impresora</ion-label>
+        <ion-input 
+          type="text" 
+          [(ngModel)]="config.printerIp"
+          placeholder="192.168.1.100">
+        </ion-input>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="floating">Puerto (por defecto 9100)</ion-label>
+        <ion-input 
+          type="number" 
+          [(ngModel)]="config.printerPort"
+          placeholder="9100">
+        </ion-input>
+      </ion-item>
+
+      <ion-button 
+        expand="block" 
+        (click)="connectToNetworkPrinter()"
+        [disabled]="!config.printerIp || connecting"
+        class="ion-margin-top">
+        <ion-icon name="wifi-outline" slot="start"></ion-icon>
+        {{ connecting ? 'Conectando...' : 'Conectar a Impresora de Red' }}
+        <ion-spinner *ngIf="connecting" slot="end"></ion-spinner>
+      </ion-button>
+
+      <div class="info-box warning" *ngIf="!config.printerIp">
+        <p>
+          <ion-icon name="warning-outline" color="warning"></ion-icon>
+          <strong>¿Cómo encontrar la IP de la impresora?</strong><br>
+          • Imprime una página de configuración desde la impresora<br>
+          • O revisa el panel del router WiFi<br>
+          • La IP suele ser algo como: 192.168.1.XXX
         </p>
       </div>
     </ion-card-content>
   </ion-card>
 
-  <!-- Buscar Impresoras -->
-  <ion-card *ngIf="!config.simulationMode">
+  <!-- Buscar Impresoras Bluetooth -->
+  <ion-card *ngIf="config.connectionType === 'bluetooth'">
     <ion-card-header>
       <ion-card-title>
         <ion-icon name="search-outline"></ion-icon>
-        Buscar Impresoras
+        Buscar Impresoras Bluetooth
       </ion-card-title>
     </ion-card-header>
     <ion-card-content>

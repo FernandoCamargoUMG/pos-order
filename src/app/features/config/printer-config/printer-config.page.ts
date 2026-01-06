@@ -15,6 +15,8 @@ import {
   IonToggle,
   IonSelect,
   IonSelectOption,
+  IonSegment,
+  IonSegmentButton,
   IonButton,
   IonIcon,
   IonCard,
@@ -38,7 +40,10 @@ import {
   closeCircle,
   searchOutline,
   settings,
-  document
+  document,
+  informationCircle,
+  warningOutline,
+  optionsOutline
 } from 'ionicons/icons';
 import { PrinterService, PrinterConfig } from '../../../core/services/printer.service';
 import { BleDevice } from '@capacitor-community/bluetooth-le';
@@ -63,6 +68,8 @@ import { BleDevice } from '@capacitor-community/bluetooth-le';
     IonToggle,
     IonSelect,
     IonSelectOption,
+    IonSegment,
+    IonSegmentButton,
     IonButton,
     IonIcon,
     IonCard,
@@ -77,6 +84,7 @@ import { BleDevice } from '@capacitor-community/bluetooth-le';
 })
 export class PrinterConfigPage implements OnInit {
   config: PrinterConfig = {
+    connectionType: 'simulation',
     paperWidth: 58,
     copies: 1,
     header: '',
@@ -87,6 +95,7 @@ export class PrinterConfigPage implements OnInit {
   availablePrinters: BleDevice[] = [];
   isScanning = false;
   isConnected = false;
+  connecting = false;
 
   constructor(
     private printerService: PrinterService,
@@ -103,7 +112,10 @@ export class PrinterConfigPage implements OnInit {
       closeCircle,
       searchOutline,
       settings,
-      document
+      document,
+      informationCircle,
+      warningOutline,
+      optionsOutline
     });
   }
 
@@ -179,6 +191,56 @@ export class PrinterConfigPage implements OnInit {
     } finally {
       await loading.dismiss();
     }
+  }
+
+  // ============================================
+  // MÉTODOS DE RED/WIFI
+  // ============================================
+
+  async connectToNetworkPrinter() {
+    if (!this.config.printerIp) {
+      await this.showToast('Ingresa la dirección IP de la impresora', 'warning');
+      return;
+    }
+
+    this.connecting = true;
+    const loading = await this.loadingController.create({
+      message: 'Conectando a impresora de red...'
+    });
+    await loading.present();
+
+    try {
+      await this.printerService.connectToNetworkPrinter(
+        this.config.printerIp,
+        this.config.printerPort || 9100
+      );
+      
+      this.isConnected = true;
+      await this.showToast('¡Conectado a la impresora de red!', 'success');
+      await this.loadConfig();
+    } catch (error: any) {
+      console.error('Error connecting to network printer:', error);
+      await this.showToast(error.message || 'Error al conectar a la impresora de red', 'danger');
+    } finally {
+      this.connecting = false;
+      await loading.dismiss();
+    }
+  }
+
+  async onConnectionTypeChange() {
+    // Si cambia el tipo de conexión, desconectar si estaba conectado
+    if (this.isConnected) {
+      await this.disconnectPrinter();
+    }
+    
+    // Guardar configuración
+    await this.printerService.saveConfig({
+      connectionType: this.config.connectionType,
+      simulationMode: this.config.connectionType === 'simulation'
+    });
+    
+    await this.loadConfig();
+    this.isConnected = this.printerService.isConnected();
   }
 
   async disconnectPrinter() {

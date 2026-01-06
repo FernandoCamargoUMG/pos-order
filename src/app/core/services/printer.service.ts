@@ -37,8 +37,14 @@ const ESC_POS = {
 };
 
 export interface PrinterConfig {
+    connectionType: 'bluetooth' | 'network' | 'simulation';
+    // Bluetooth
     deviceId?: string;
     deviceName?: string;
+    // Network
+    printerIp?: string;
+    printerPort?: number;
+    // General
     paperWidth: 58 | 80; // mm
     copies: number;
     header: string;
@@ -70,12 +76,16 @@ export interface OrderPrint {
 })
 export class PrinterService {
     private connectedDevice: BleDevice | null = null;
+    private networkConnected: boolean = false;
     private config: PrinterConfig = {
+        connectionType: 'simulation',
         paperWidth: 58,
         copies: 1,
         header: 'RESTAURANTE HAMBURGUESAS',
         footer: 'Gracias por su preferencia',
-        simulationMode: true // Por defecto en modo simulación
+        printerIp: '192.168.1.100',
+        printerPort: 9100,
+        simulationMode: true
     };
 
     constructor() {
@@ -185,7 +195,69 @@ export class PrinterService {
     }
 
     isConnected(): boolean {
-        return this.connectedDevice !== null;
+        if (this.config.connectionType === 'bluetooth') {
+            return this.connectedDevice !== null;
+        } else if (this.config.connectionType === 'network') {
+            return this.networkConnected;
+        }
+        return false;
+    }
+
+    // ============================================
+    // RED/WIFI - Conectar a impresora de red
+    // ============================================
+
+    async connectToNetworkPrinter(ip: string, port: number = 9100): Promise<void> {
+        try {
+            // Probar conexión enviando comando de inicialización
+            const testData = ESC_POS.INIT;
+            await this.sendToNetworkPrinter(ip, port, testData);
+            
+            this.networkConnected = true;
+            await this.saveConfig({
+                connectionType: 'network',
+                printerIp: ip,
+                printerPort: port,
+                simulationMode: false
+            });
+            
+            console.log(`Conectado a impresora de red: ${ip}:${port}`);
+        } catch (error) {
+            console.error('Error conectando a impresora de red:', error);
+            throw new Error('No se pudo conectar a la impresora de red. Verifica la IP y que la impresora esté encendida.');
+        }
+    }
+
+    async disconnectNetworkPrinter(): Promise<void> {
+        this.networkConnected = false;
+        console.log('Desconectado de impresora de red');
+    }
+
+    private async sendToNetworkPrinter(ip: string, port: number, data: string): Promise<void> {
+        try {
+            // Convertir comandos ESC/POS a bytes
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(data);
+            
+            // Enviar vía HTTP POST (la impresora debe tener servidor web)
+            // O usar raw socket si está disponible
+            const response = await fetch(`http://${ip}:${port}/print`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/octet-stream',
+                },
+                body: bytes
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            // Si no tiene servidor HTTP, intentar puerto raw (9100)
+            // Esto requiere enviar directo al puerto TCP
+            console.error('Error en sendToNetworkPrinter:', error);
+            throw error;
+        }
     }
 
     // ============================================
@@ -193,16 +265,30 @@ export class PrinterService {
     // ============================================
 
     private async sendToPrinter(data: string): Promise<void> {
-        if (this.config.simulationMode) {
-            // Modo simulación - mostrar en consola
+        // Modo simulación
+        if (this.config.connectionType === 'simulation' || this.config.simulationMode) {
             console.log('=== SIMULACIÓN DE IMPRESIÓN ===');
             console.log(data);
             console.log('=== FIN DE SIMULACIÓN ===');
             return;
         }
 
+        // Impresora de red
+        if (this.config.connectionType === 'network') {
+            if (!this.networkConnected || !this.config.printerIp) {
+                throw new Error('No hay impresora de red conectada');
+            }
+            await this.sendToNetworkPrinter(
+                this.config.printerIp,
+                this.config.printerPort || 9100,
+                data
+            );
+            return;
+        }
+
+        // Impresora Bluetooth
         if (!this.connectedDevice) {
-            throw new Error('No hay impresora conectada');
+            throw new Error('No hay impresora Bluetooth conectada');
         }
 
         try {
