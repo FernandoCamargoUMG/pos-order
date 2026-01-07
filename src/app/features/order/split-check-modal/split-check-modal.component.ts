@@ -157,10 +157,50 @@ export class SplitCheckModalComponent implements OnInit {
       return;
     }
     
-    // Confirmar movimiento
+    // Si el item tiene cantidad > 1, preguntar cuántas mover
+    if (item.quantity > 1) {
+      await this.askQuantityToMove(sourceOrderId, targetOrderId, item);
+    } else {
+      // Confirmar movimiento de 1 unidad
+      const alert = await this.alertController.create({
+        header: 'Mover Item',
+        message: `¿Mover "${item.product_name}" a otra cuenta?`,
+        buttons: [
+          {
+            text: 'Cancelar',
+            role: 'cancel'
+          },
+          {
+            text: 'Mover',
+            handler: async () => {
+              await this.moveItem(sourceOrderId, targetOrderId, item, 1);
+            }
+          }
+        ]
+      });
+      
+      await alert.present();
+    }
+    
+    this.draggedItem = null;
+  }
+
+  async askQuantityToMove(sourceOrderId: string, targetOrderId: string, item: any) {
     const alert = await this.alertController.create({
-      header: 'Mover Item',
-      message: `¿Mover "${item.product_name}" a otra cuenta?`,
+      header: 'Separar Cantidad',
+      message: `¿Cuántas unidades de "${item.product_name}" deseas mover?`,
+      subHeader: `Total disponible: ${item.quantity}`,
+      cssClass: 'custom-quantity-alert',
+      inputs: [
+        {
+          name: 'quantity',
+          type: 'number',
+          placeholder: 'Cantidad',
+          min: 1,
+          max: item.quantity,
+          value: 1
+        }
+      ],
       buttons: [
         {
           text: 'Cancelar',
@@ -168,36 +208,68 @@ export class SplitCheckModalComponent implements OnInit {
         },
         {
           text: 'Mover',
-          handler: async () => {
-            await this.moveItem(sourceOrderId, targetOrderId, item);
+          handler: async (data) => {
+            const quantityToMove = parseInt(data.quantity);
+            
+            if (!quantityToMove || quantityToMove < 1) {
+              this.showToast('Cantidad inválida', 'warning');
+              return false;
+            }
+            
+            if (quantityToMove > item.quantity) {
+              this.showToast(`Solo hay ${item.quantity} disponibles`, 'warning');
+              return false;
+            }
+            
+            await this.moveItem(sourceOrderId, targetOrderId, item, quantityToMove);
+            return true;
           }
         }
       ]
     });
     
     await alert.present();
-    this.draggedItem = null;
   }
 
-  async moveItem(sourceOrderId: string, targetOrderId: string, item: any) {
+  async moveItem(sourceOrderId: string, targetOrderId: string, item: any, quantityToMove: number = item.quantity) {
     try {
-      // Remover del source
       const sourceOrder = this.ordersWithItems.find(o => o.id_local === sourceOrderId);
-      if (sourceOrder) {
+      const targetOrder = this.ordersWithItems.find(o => o.id_local === targetOrderId);
+      
+      if (!sourceOrder || !targetOrder) return;
+      
+      // Si se mueven TODAS las unidades, mover el item completo
+      if (quantityToMove === item.quantity) {
+        // Remover completamente del source
         sourceOrder.items = sourceOrder.items.filter(i => i.id_local !== item.id_local);
-        sourceOrder.total = sourceOrder.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+        
+        // Agregar al target
+        targetOrder.items.push({ ...item });
+      } else {
+        // Si se mueve una cantidad parcial, separar
+        
+        // Reducir cantidad en el source
+        const sourceItem = sourceOrder.items.find(i => i.id_local === item.id_local);
+        if (sourceItem) {
+          sourceItem.quantity -= quantityToMove;
+        }
+        
+        // Crear nuevo item en el target con la cantidad movida
+        const newItem = {
+          ...item,
+          id_local: `${item.id_local}_split_${Date.now()}`, // Nuevo ID único
+          quantity: quantityToMove
+        };
+        targetOrder.items.push(newItem);
       }
       
-      // Agregar al target
-      const targetOrder = this.ordersWithItems.find(o => o.id_local === targetOrderId);
-      if (targetOrder) {
-        targetOrder.items.push(item);
-        targetOrder.total = targetOrder.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
-      }
+      // Recalcular totales
+      sourceOrder.total = sourceOrder.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+      targetOrder.total = targetOrder.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
       
       // Actualizar en base de datos
-      await this.updateOrderInDatabase(sourceOrder!);
-      await this.updateOrderInDatabase(targetOrder!);
+      await this.updateOrderInDatabase(sourceOrder);
+      await this.updateOrderInDatabase(targetOrder);
       
       // Si las órdenes estaban enviadas, actualizar timestamp para notificar cocina
       if (sourceOrder?.status === 'SENT') {

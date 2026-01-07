@@ -232,3 +232,13 @@
     margin-bottom: 24px;
   }
 }
+
+// Estilos para el alert de cantidad
+::ng-deep {
+  .custom-quantity-alert {
+    .alert-input {
+      background: #fff !important;
+      color: #000 !important;
+    }
+  }
+}
