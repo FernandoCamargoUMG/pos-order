@@ -71,13 +71,14 @@ export class ProductModifiersModalComponent implements OnInit {
   }
 
   async loadModifiers() {
-    const exclusionsData = await this.modifierService.getModifiersByType('EXCLUDE');
+    // Filtrar modificadores según la categoría del producto
+    const exclusionsData = await this.modifierService.getModifiersByTypeAndCategory('EXCLUDE', this.product.category);
     this.exclusions = exclusionsData.map(m => ({ name: m.name, selected: false }));
 
-    const extrasData = await this.modifierService.getModifiersByType('EXTRA');
+    const extrasData = await this.modifierService.getModifiersByTypeAndCategory('EXTRA', this.product.category);
     this.extras = extrasData.map(m => ({ name: m.name, selected: false }));
 
-    const cookingData = await this.modifierService.getModifiersByType('COOKING');
+    const cookingData = await this.modifierService.getModifiersByTypeAndCategory('COOKING', this.product.category);
     this.cookingTerms = cookingData.map(m => ({ name: m.name, selected: false }));
   }
 

@@ -116,6 +116,15 @@ export class ModifiersManagementPage implements OnInit {
     }
   }
 
+  getCategoryLabel(category?: string): string {
+    switch (category) {
+      case 'Bebidas': return '🥤 Bebidas';
+      case 'Comida': return '🍔 Comida';
+      case 'Todos':
+      default: return '📦 Todos';
+    }
+  }
+
   goBack() {
     this.router.navigate(['/admin-menu']);
   }

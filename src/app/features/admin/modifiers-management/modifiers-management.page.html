@@ -31,7 +31,7 @@
     <ion-item *ngFor="let modifier of getModifiersByType(selectedType)" lines="full">
       <ion-label>
         <h2>{{ modifier.name }}</h2>
-        <p>{{ getTypeLabel(modifier.type) }}</p>
+        <p>{{ getTypeLabel(modifier.type) }} • {{ getCategoryLabel(modifier.category) }}</p>
       </ion-label>
       <ion-button slot="end" fill="clear" color="primary" (click)="openFormModal(modifier)">
         <ion-icon slot="icon-only" name="create-outline"></ion-icon>

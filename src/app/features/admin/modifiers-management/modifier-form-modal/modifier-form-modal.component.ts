@@ -50,6 +50,7 @@ export class ModifierFormModalComponent implements OnInit {
 
   name: string = '';
   type: 'EXCLUDE' | 'EXTRA' | 'COOKING' = 'EXCLUDE';
+  category: 'Bebidas' | 'Comida' | 'Todos' = 'Todos';
 
   constructor(
     private modalCtrl: ModalController,
@@ -62,6 +63,7 @@ export class ModifierFormModalComponent implements OnInit {
     if (this.modifier) {
       this.name = this.modifier.name;
       this.type = this.modifier.type;
+      this.category = this.modifier.category || 'Todos';
     } else if (this.defaultType) {
       this.type = this.defaultType;
     }
@@ -80,12 +82,14 @@ export class ModifierFormModalComponent implements OnInit {
       if (this.modifier?.id) {
         await this.modifierService.updateModifier(this.modifier.id, {
           name: this.name.trim(),
-          type: this.type
+          type: this.type,
+          category: this.category
         });
       } else {
         await this.modifierService.createModifier({
           name: this.name.trim(),
-          type: this.type
+          type: this.type,
+          category: this.category
         });
       }
       this.modalCtrl.dismiss({ saved: true }, 'confirm');

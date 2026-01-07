@@ -74,6 +74,7 @@ export interface Modifier {
   id: number;
   name: string;
   type: ModifierType;
+  category?: 'Bebidas' | 'Comida' | 'Todos';
   deleted_at?: string;
 }
 

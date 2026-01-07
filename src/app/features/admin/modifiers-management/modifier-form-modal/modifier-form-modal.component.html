@@ -29,5 +29,14 @@
         <ion-select-option value="COOKING">Cocción (Término...)</ion-select-option>
       </ion-select>
     </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Categoría</ion-label>
+      <ion-select [(ngModel)]="category" interface="action-sheet">
+        <ion-select-option value="Todos">Todos los productos</ion-select-option>
+        <ion-select-option value="Bebidas">Solo Bebidas</ion-select-option>
+        <ion-select-option value="Comida">Solo Comida</ion-select-option>
+      </ion-select>
+    </ion-item>
   </ion-list>
 </ion-content>

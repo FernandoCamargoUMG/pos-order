@@ -250,6 +250,22 @@ export const MIGRATIONS: Migration[] = [
     //     ALTER TABLE products ADD COLUMN image_url TEXT;
     //   `
     // }
+
+    {
+        version: 2,
+        name: 'add_modifier_category',
+        up: `
+            -- Agregar columna category a modifiers
+            ALTER TABLE modifiers ADD COLUMN category TEXT CHECK(category IN ('Bebidas','Comida','Todos')) DEFAULT 'Todos';
+            
+            -- Índice para optimización
+            CREATE INDEX IF NOT EXISTS idx_modifiers_category ON modifiers(category);
+        `,
+        down: `
+            DROP INDEX IF EXISTS idx_modifiers_category;
+            -- SQLite no soporta DROP COLUMN en versiones antiguas
+        `
+    }
 ];
 
 /**
