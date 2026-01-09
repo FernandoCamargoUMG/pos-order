@@ -125,7 +125,7 @@ export class PrinterConfigPage implements OnInit {
   }
 
   async loadConfig() {
-    this.config = this.printerService.getConfig();
+    this.config = await this.printerService.getConfig();
   }
 
   async saveConfig() {

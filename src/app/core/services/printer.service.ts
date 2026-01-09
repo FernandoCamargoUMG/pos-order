@@ -27,9 +27,12 @@ const ESC_POS = {
     UNDERLINE_ON: `${ESC}-\x01`,
     UNDERLINE_OFF: `${ESC}-\x00`,
 
-    // Espaciado
+    // Espaciado y corte
     LINE_FEED: '\n',
-    PAPER_CUT: `${GS}V\x00`,
+    FEED_LINES_3: `${ESC}d\x03`, // Avanzar 3 líneas
+    FEED_LINES_5: `${ESC}d\x05`, // Avanzar 5 líneas
+    PAPER_CUT: `${GS}V\x00`, // Corte parcial
+    PAPER_CUT_FULL: `${GS}V\x01`, // Corte completo
 
     // Separadores
     SEPARATOR: '--------------------------------\n',
@@ -41,6 +44,8 @@ export interface PrinterConfig {
     // Bluetooth
     deviceId?: string;
     deviceName?: string;
+    serviceUUID?: string; // UUID descubierto automáticamente
+    characteristicUUID?: string; // UUID descubierto automáticamente
     // Network
     printerIp?: string;
     printerPort?: number;
@@ -50,6 +55,9 @@ export interface PrinterConfig {
     header: string;
     footer: string;
     simulationMode: boolean;
+    // Configuración avanzada BLE (opcional)
+    chunkSize?: number; // Tamaño de chunk BLE (default: 20 bytes - SEGURO para todas las impresoras)
+    chunkDelay?: number; // Delay entre chunks en ms (default: 50ms - tiempo adecuado para procesamiento)
 }
 
 export interface OrderItem {
@@ -77,6 +85,8 @@ export interface OrderPrint {
 export class PrinterService {
     private connectedDevice: BleDevice | null = null;
     private networkConnected: boolean = false;
+    private configLoaded: boolean = false;
+    private configLoadingPromise: Promise<void> | null = null;
     private config: PrinterConfig = {
         connectionType: 'simulation',
         paperWidth: 58,
@@ -89,29 +99,62 @@ export class PrinterService {
     };
 
     constructor() {
-        this.loadConfig();
+        // No llamar métodos async en el constructor
     }
 
-    async loadConfig(): Promise<void> {
+    /**
+     * Asegura que la configuración esté cargada antes de usarla
+     * Evita race conditions y múltiples cargas simultáneas
+     */
+    private async ensureConfigLoaded(): Promise<void> {
+        if (this.configLoaded) {
+            return;
+        }
+
+        // Si ya hay una carga en progreso, esperar a que termine
+        if (this.configLoadingPromise) {
+            return this.configLoadingPromise;
+        }
+
+        // Iniciar nueva carga
+        this.configLoadingPromise = this.loadConfigInternal();
+        await this.configLoadingPromise;
+        this.configLoadingPromise = null;
+    }
+
+    private async loadConfigInternal(): Promise<void> {
         try {
+            console.log('📥 Cargando configuración de impresora...');
             const { value } = await Preferences.get({ key: 'printer_config' });
             if (value) {
                 this.config = { ...this.config, ...JSON.parse(value) };
+                console.log('✅ Configuración cargada:', {
+                    connectionType: this.config.connectionType,
+                    deviceName: this.config.deviceName,
+                    hasUUIDs: !!(this.config.serviceUUID && this.config.characteristicUUID)
+                });
+            } else {
+                console.log('ℹ️ No hay configuración guardada, usando valores por defecto');
             }
+            this.configLoaded = true;
         } catch (error) {
-            console.error('Error loading printer config:', error);
+            console.error('❌ Error loading printer config:', error);
+            this.configLoaded = true; // Marcar como cargado para evitar intentos infinitos
         }
     }
 
     async saveConfig(config: Partial<PrinterConfig>): Promise<void> {
+        await this.ensureConfigLoaded();
         this.config = { ...this.config, ...config };
+        console.log('💾 Guardando configuración:', config);
         await Preferences.set({
             key: 'printer_config',
             value: JSON.stringify(this.config)
         });
     }
 
-    getConfig(): PrinterConfig {
+    async getConfig(): Promise<PrinterConfig> {
+        await this.ensureConfigLoaded();
         return { ...this.config };
     }
 
@@ -170,16 +213,160 @@ export class PrinterService {
             const devices = await BleClient.getDevices([deviceId]);
             this.connectedDevice = devices[0] || null;
 
-            // Guardar configuración
+            console.log('✓ Conectado a:', this.connectedDevice?.name);
+
+            // Intentar establecer prioridad alta de conexión para mejor performance (opcional)
+            try {
+                // CONNECTION_PRIORITY_HIGH = 1 (reduce latencia)
+                // Si falla, funcionará con prioridad por defecto
+                await BleClient.requestConnectionPriority(deviceId, 1); // 1 = ConnectionPriority.CONNECTION_PRIORITY_HIGH
+                console.log('✓ Prioridad de conexión establecida en HIGH');
+            } catch (error) {
+                // No es crítico si falla, funcionará con prioridad estándar
+                console.log('ℹ️ No se pudo ajustar prioridad de conexión (normal en algunas impresoras)');
+            }
+
+            // Descubrir servicios y características automáticamente
+            console.log('Descubriendo servicios de la impresora...');
+            const { serviceUUID, characteristicUUID } = await this.discoverPrinterCharacteristics(deviceId);
+
+            // Guardar configuración con los UUIDs descubiertos
             await this.saveConfig({
+                connectionType: 'bluetooth',
                 deviceId,
-                deviceName: this.connectedDevice?.name
+                deviceName: this.connectedDevice?.name,
+                serviceUUID,
+                characteristicUUID,
+                simulationMode: false
             });
 
-            console.log('Printer connected:', this.connectedDevice?.name);
+            console.log('✓ Impresora configurada:', {
+                name: this.connectedDevice?.name,
+                service: serviceUUID,
+                characteristic: characteristicUUID
+            });
         } catch (error) {
             console.error('Error connecting to printer:', error);
-            throw new Error('No se pudo conectar a la impresora');
+            throw new Error('No se pudo conectar a la impresora: ' + error);
+        }
+    }
+
+    /**
+     * Descubre automáticamente el servicio y característica correctos para imprimir
+     * Prioriza servicios de impresora sobre servicios genéricos
+     */
+    private async discoverPrinterCharacteristics(deviceId: string): Promise<{ serviceUUID: string; characteristicUUID: string }> {
+        try {
+            // Obtener todos los servicios del dispositivo
+            const services = await BleClient.getServices(deviceId);
+            console.log(`📡 Encontrados ${services.length} servicios`);
+
+            // Servicios conocidos de impresoras (en orden de prioridad)
+            const printerServicePatterns = [
+                '000018f0', // Serial Port Profile
+                '49535343', // Microchip Transparent UART
+                'e7810a71', // Printer Service común
+                '0000fff0', // Custom printer service
+                '6e400001', // Nordic UART Service
+            ];
+
+            // UUIDs genéricos de bajo nivel (evitar si es posible)
+            const genericServices = [
+                '00001800', // Generic Access
+                '00001801', // Generic Attribute
+                '0000180a', // Device Information
+                '0000180f', // Battery Service
+            ];
+
+            interface CandidateCharacteristic {
+                serviceUUID: string;
+                characteristicUUID: string;
+                priority: number;
+                properties: any;
+            }
+
+            const candidates: CandidateCharacteristic[] = [];
+
+            // Buscar todas las características con capacidad de escritura
+            for (const service of services) {
+                console.log(`🔍 Verificando servicio: ${service.uuid}`);
+                
+                // Calcular prioridad del servicio
+                let priority = 0;
+                const serviceId = service.uuid.toLowerCase();
+                
+                // Alta prioridad para servicios de impresora conocidos
+                const printerIndex = printerServicePatterns.findIndex(pattern => 
+                    serviceId.includes(pattern.toLowerCase())
+                );
+                if (printerIndex !== -1) {
+                    priority = 100 - printerIndex; // Mayor prioridad para los primeros
+                    console.log(`  ⭐ Servicio de impresora detectado (prioridad ${priority})`);
+                }
+                
+                // Baja prioridad para servicios genéricos
+                const isGeneric = genericServices.some(pattern => 
+                    serviceId.includes(pattern.toLowerCase())
+                );
+                if (isGeneric) {
+                    priority = -50;
+                    console.log(`  ⚠️ Servicio genérico detectado (prioridad ${priority})`);
+                }
+                
+                for (const characteristic of service.characteristics) {
+                    const canWrite = characteristic.properties.write || characteristic.properties.writeWithoutResponse;
+                    
+                    if (canWrite) {
+                        // Bonus de prioridad si soporta ambos tipos de escritura
+                        let charPriority = priority;
+                        if (characteristic.properties.write && characteristic.properties.writeWithoutResponse) {
+                            charPriority += 10;
+                        }
+
+                        candidates.push({
+                            serviceUUID: service.uuid,
+                            characteristicUUID: characteristic.uuid,
+                            priority: charPriority,
+                            properties: characteristic.properties
+                        });
+
+                        console.log(`  ✅ Característica escribible encontrada:`, {
+                            service: service.uuid.substring(0, 8),
+                            characteristic: characteristic.uuid.substring(0, 8),
+                            priority: charPriority,
+                            write: characteristic.properties.write,
+                            writeWithoutResponse: characteristic.properties.writeWithoutResponse
+                        });
+                    }
+                }
+            }
+
+            if (candidates.length === 0) {
+                throw new Error('No se encontró ninguna característica con capacidad de escritura');
+            }
+
+            // Ordenar por prioridad (mayor a menor)
+            candidates.sort((a, b) => b.priority - a.priority);
+
+            console.log(`\n🎯 Seleccionando característica con mayor prioridad:`);
+            console.log(`   Servicio: ${candidates[0].serviceUUID}`);
+            console.log(`   Característica: ${candidates[0].characteristicUUID}`);
+            console.log(`   Prioridad: ${candidates[0].priority}`);
+            
+            if (candidates.length > 1) {
+                console.log(`\n📋 Otras opciones disponibles (${candidates.length - 1}):`);
+                candidates.slice(1, 4).forEach((c, i) => {
+                    console.log(`   ${i + 2}. ${c.serviceUUID.substring(0, 8)}... (prioridad: ${c.priority})`);
+                });
+            }
+
+            return {
+                serviceUUID: candidates[0].serviceUUID,
+                characteristicUUID: candidates[0].characteristicUUID
+            };
+        } catch (error) {
+            console.error('❌ Error descubriendo características:', error);
+            throw error;
         }
     }
 
@@ -188,6 +375,13 @@ export class PrinterService {
             try {
                 await BleClient.disconnect(this.connectedDevice.deviceId);
                 this.connectedDevice = null;
+                console.log('✓ Impresora desconectada');
+                
+                // Actualizar config para prevenir uso accidental
+                await this.saveConfig({
+                    connectionType: 'simulation',
+                    simulationMode: true
+                });
             } catch (error) {
                 console.error('Error disconnecting printer:', error);
             }
@@ -207,7 +401,25 @@ export class PrinterService {
     // RED/WIFI - Conectar a impresora de red
     // ============================================
 
+    /**
+     * ⚠️ LIMITACIÓN IMPORTANTE - IMPRESORAS DE RED ⚠️
+     * 
+     * Las impresoras térmicas de red utilizan RAW TCP sockets en el puerto 9100,
+     * NO un servidor HTTP. Las aplicaciones móviles y navegadores web NO pueden
+     * acceder directamente a sockets TCP por restricciones de seguridad.
+     * 
+     * SOLUCIONES ALTERNATIVAS:
+     * 1. Usar impresora Bluetooth (RECOMENDADO para apps móviles)
+     * 2. Implementar servidor intermediario (Node.js que reciba HTTP y envíe a TCP)
+     * 3. Usar plugin nativo específico para sockets TCP
+     * 
+     * ESTADO ACTUAL: Este método intentará enviar vía HTTP, pero solo funcionará
+     * si la impresora tiene un servidor web integrado (poco común en impresoras térmicas).
+     */
     async connectToNetworkPrinter(ip: string, port: number = 9100): Promise<void> {
+        console.log('⚠️ ADVERTENCIA: Las impresoras de red requieren configuración especial en apps móviles');
+        console.log('   Se recomienda usar impresora Bluetooth para mayor compatibilidad');
+        
         try {
             // Probar conexión enviando comando de inicialización
             const testData = ESC_POS.INIT;
@@ -221,7 +433,7 @@ export class PrinterService {
                 simulationMode: false
             });
             
-            console.log(`Conectado a impresora de red: ${ip}:${port}`);
+            console.log(`✅ Conectado a impresora de red: ${ip}:${port}`);
         } catch (error) {
             console.error('Error conectando a impresora de red:', error);
             throw new Error('No se pudo conectar a la impresora de red. Verifica la IP y que la impresora esté encendida.');
@@ -234,13 +446,18 @@ export class PrinterService {
     }
 
     private async sendToNetworkPrinter(ip: string, port: number, data: string): Promise<void> {
+        console.log(`📡 Intentando enviar a impresora de red ${ip}:${port}...`);
+        
         try {
             // Convertir comandos ESC/POS a bytes
             const encoder = new TextEncoder();
             const bytes = encoder.encode(data);
             
-            // Enviar vía HTTP POST (la impresora debe tener servidor web)
-            // O usar raw socket si está disponible
+            console.log('⚠️ NOTA: Este método usa HTTP, no funcionará con impresoras térmicas estándar');
+            console.log('   Las impresoras térmicas usan RAW TCP socket (puerto 9100), no HTTP');
+            console.log('   Solo funcionará si la impresora tiene servidor HTTP integrado');
+            
+            // Enviar vía HTTP POST (solo funciona si la impresora tiene servidor web)
             const response = await fetch(`http://${ip}:${port}/print`, {
                 method: 'POST',
                 headers: {
@@ -252,11 +469,21 @@ export class PrinterService {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
+            
+            console.log('✅ Datos enviados a impresora de red (HTTP)');
         } catch (error) {
-            // Si no tiene servidor HTTP, intentar puerto raw (9100)
-            // Esto requiere enviar directo al puerto TCP
-            console.error('Error en sendToNetworkPrinter:', error);
-            throw error;
+            console.error('❌ Error en sendToNetworkPrinter:', error);
+            console.log('\n💡 SOLUCIÓN RECOMENDADA:');
+            console.log('   1. Usa impresora Bluetooth en su lugar (100% compatible)');
+            console.log('   2. O implementa servidor Node.js intermediario:');
+            console.log('      - Recibe HTTP POST desde la app');
+            console.log('      - Reenvía a impresora vía socket TCP puerto 9100');
+            
+            throw new Error(
+                'No se pudo conectar con la impresora de red. ' +
+                'Las impresoras térmicas requieren conexión TCP directa que no está disponible en apps móviles. ' +
+                'Usa impresora Bluetooth o implementa un servidor intermediario.'
+            );
         }
     }
 
@@ -265,6 +492,11 @@ export class PrinterService {
     // ============================================
 
     private async sendToPrinter(data: string): Promise<void> {
+        // Asegurar que la configuración esté cargada
+        await this.ensureConfigLoaded();
+
+        console.log(`🖨️ Iniciando impresión (modo: ${this.config.connectionType})`);
+
         // Modo simulación
         if (this.config.connectionType === 'simulation' || this.config.simulationMode) {
             console.log('=== SIMULACIÓN DE IMPRESIÓN ===');
@@ -291,30 +523,146 @@ export class PrinterService {
             throw new Error('No hay impresora Bluetooth conectada');
         }
 
+        // Verificar que tengamos los UUIDs descubiertos
+        if (!this.config.serviceUUID || !this.config.characteristicUUID) {
+            throw new Error('Los UUIDs de la impresora no fueron descubiertos. Reconecta la impresora.');
+        }
+
+        // Verificación básica de que tenemos deviceId
+        if (!this.config.deviceId) {
+            throw new Error('No se encontró el ID del dispositivo. Reconecta la impresora.');
+        }
+
         try {
+            console.log('📤 Enviando datos a impresora BT:', this.config.deviceName || 'Impresora');
+            console.log('   Device ID:', this.config.deviceId);
+            console.log('   Servicio:', this.config.serviceUUID.substring(0, 8) + '...');
+            console.log('   Característica:', this.config.characteristicUUID.substring(0, 8) + '...');
+            
             // Convertir string a bytes
             const encoder = new TextEncoder();
             const bytes = encoder.encode(data);
-
-            // Aquí iría la lógica para enviar a la impresora vía BLE
-            // Esto depende del servicio y característica específicos de tu impresora
-            // Ejemplo genérico (ajustar según tu impresora):
-            /*
-            const serviceUUID = 'tu-service-uuid';
-            const characteristicUUID = 'tu-characteristic-uuid';
             
-            await BleClient.write(
-              this.connectedDevice.deviceId,
-              serviceUUID,
-              characteristicUUID,
-              new DataView(bytes.buffer)
-            );
-            */
+            console.log(`   Tamaño: ${bytes.length} bytes`);
 
-            console.log('Data sent to printer');
+            // Usar configuración dinámica o valores por defecto SEGUROS
+            // 20 bytes = MTU estándar BLE (funciona con TODAS las impresoras)
+            // 50ms = tiempo adecuado para que la impresora procese cada chunk
+            const chunkSize = this.config.chunkSize || 20;
+            const chunkDelay = this.config.chunkDelay || 50;
+            
+            console.log(`   Chunk size: ${chunkSize} bytes, delay: ${chunkDelay}ms`);
+            console.log(`   Total chunks a enviar: ${Math.ceil(bytes.length / chunkSize)}`);
+
+            // Usar los UUIDs descubiertos automáticamente con retry logic
+            await this.writeInChunksWithRetry(
+                this.config.deviceId,
+                this.config.serviceUUID,
+                this.config.characteristicUUID,
+                bytes,
+                chunkSize,
+                chunkDelay
+            );
+            
+            // Esperar a que la impresora procese todos los datos antes de confirmar
+            // Tiempo crítico para que el buffer de la impresora se vacíe
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            console.log('✅ Datos enviados correctamente a la impresora');
         } catch (error) {
-            console.error('Error sending to printer:', error);
-            throw new Error('Error al enviar datos a la impresora');
+            console.error('❌ Error sending to printer:', error);
+            throw new Error('Error al enviar datos a la impresora: ' + error);
+        }
+    }
+
+    /**
+     * Escribe datos en chunks con retry logic para manejar fallos temporales
+     * IMPORTANTE: Usa chunk size de 20 bytes (MTU estándar BLE) para máxima compatibilidad
+     * Solo aumenta si tu impresora soporta BLE 4.2+ y MTU más grande
+     */
+    private async writeInChunksWithRetry(
+        deviceId: string,
+        serviceUUID: string,
+        characteristicUUID: string,
+        data: Uint8Array,
+        chunkSize: number = 20,
+        chunkDelay: number = 50,
+        maxRetries: number = 3
+    ): Promise<void> {
+        const totalChunks = Math.ceil(data.length / chunkSize);
+        const estimatedTime = ((totalChunks * chunkDelay) / 1000).toFixed(1);
+        console.log(`📦 Enviando ${totalChunks} chunks de ${chunkSize} bytes (delay: ${chunkDelay}ms)...`);
+        console.log(`   Tiempo estimado: ~${estimatedTime} segundos`);
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                let successfulChunks = 0;
+                
+                for (let i = 0; i < data.length; i += chunkSize) {
+                    const chunk = data.slice(i, Math.min(i + chunkSize, data.length));
+                    const chunkNumber = Math.floor(i / chunkSize) + 1;
+                    
+                    try {
+                        await BleClient.write(
+                            deviceId,
+                            serviceUUID,
+                            characteristicUUID,
+                            new DataView(chunk.buffer)
+                        );
+                        successfulChunks++;
+                        
+                        // Mostrar progreso cada 10 chunks
+                        if (chunkNumber % 10 === 0 || chunkNumber === totalChunks) {
+                            console.log(`   Progreso: ${chunkNumber}/${totalChunks} chunks`);
+                        }
+                    } catch (chunkError) {
+                        console.error(`❌ Error en chunk ${chunkNumber}:`, chunkError);
+                        throw chunkError; // Propagar para reintentar todo
+                    }
+                    
+                    // Pausa entre chunks (configurable, default 10ms)
+                    // Si tienes problemas, aumenta chunkDelay en la configuración
+                    await new Promise(resolve => setTimeout(resolve, chunkDelay));
+                }
+
+                console.log(`✅ ${successfulChunks}/${totalChunks} chunks enviados exitosamente`);
+                return; // Éxito - salir del loop de reintentos
+                
+            } catch (error) {
+                console.error(`⚠️ Intento ${attempt}/${maxRetries} fallido:`, error);
+                
+                if (attempt === maxRetries) {
+                    throw new Error(`Fallo después de ${maxRetries} intentos: ${error}`);
+                }
+                
+                // Esperar antes de reintentar (backoff exponencial)
+                const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+                console.log(`   Reintentando en ${waitTime}ms...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
+        }
+    }
+
+    /**
+     * Versión simple de writeInChunks (sin retry) - mantener por compatibilidad
+     */
+    private async writeInChunks(
+        deviceId: string,
+        serviceUUID: string,
+        characteristicUUID: string,
+        data: Uint8Array,
+        chunkSize: number = 20
+    ): Promise<void> {
+        for (let i = 0; i < data.length; i += chunkSize) {
+            const chunk = data.slice(i, Math.min(i + chunkSize, data.length));
+            await BleClient.write(
+                deviceId,
+                serviceUUID,
+                characteristicUUID,
+                new DataView(chunk.buffer)
+            );
+            // Pequeña pausa entre chunks para dar tiempo a la impresora
+            await new Promise(resolve => setTimeout(resolve, 50));
         }
     }
 
@@ -371,9 +719,8 @@ export class PrinterService {
         // Pie
         ticket += ESC_POS.ALIGN_CENTER;
         ticket += this.config.footer + '\n';
-        ticket += ESC_POS.LINE_FEED;
-        ticket += ESC_POS.LINE_FEED;
-        ticket += ESC_POS.LINE_FEED;
+        ticket += ESC_POS.FEED_LINES_5; // Alimentar papel
+        ticket += ESC_POS.LINE_FEED; // Línea extra para asegurar flush
         ticket += ESC_POS.PAPER_CUT;
 
         return ticket;
@@ -445,9 +792,8 @@ export class PrinterService {
 
         // Pie
         ticket += this.config.footer + '\n';
-        ticket += ESC_POS.LINE_FEED;
-        ticket += ESC_POS.LINE_FEED;
-        ticket += ESC_POS.LINE_FEED;
+        ticket += ESC_POS.FEED_LINES_5; // Alimentar papel
+        ticket += ESC_POS.LINE_FEED; // Línea extra para asegurar flush
         ticket += ESC_POS.PAPER_CUT;
 
         return ticket;
@@ -479,10 +825,18 @@ export class PrinterService {
      */
     async printKitchenOrder(order: OrderPrint): Promise<void> {
         try {
+            console.log(`🍳 Imprimiendo orden de cocina - Orden #${order.orderNumber}`);
+            await this.ensureConfigLoaded();
+            
             const ticket = this.formatKitchenTicket(order);
+            console.log(`   Longitud del ticket: ${ticket.length} caracteres`);
 
             // Imprimir según número de copias configurado
             for (let i = 0; i < this.config.copies; i++) {
+                if (this.config.copies > 1) {
+                    console.log(`   Copia ${i + 1}/${this.config.copies}`);
+                }
+                
                 await this.sendToPrinter(ticket);
 
                 // Pequeña pausa entre copias
@@ -491,9 +845,9 @@ export class PrinterService {
                 }
             }
 
-            console.log('Kitchen order printed successfully');
+            console.log('✅ Orden de cocina impresa exitosamente');
         } catch (error) {
-            console.error('Error printing kitchen order:', error);
+            console.error('❌ Error printing kitchen order:', error);
             throw error;
         }
     }
@@ -503,11 +857,17 @@ export class PrinterService {
      */
     async printBill(order: OrderPrint): Promise<void> {
         try {
+            console.log(`💵 Imprimiendo cuenta - Orden #${order.orderNumber}`);
+            await this.ensureConfigLoaded();
+            
             const ticket = this.formatBillTicket(order);
+            console.log(`   Longitud del ticket: ${ticket.length} caracteres`);
+            console.log(`   Total: Q${order.total?.toFixed(2)}`);
+            
             await this.sendToPrinter(ticket);
-            console.log('Bill printed successfully');
+            console.log('✅ Cuenta impresa exitosamente');
         } catch (error) {
-            console.error('Error printing bill:', error);
+            console.error('❌ Error printing bill:', error);
             throw error;
         }
     }
@@ -517,6 +877,9 @@ export class PrinterService {
      */
     async printTestTicket(): Promise<void> {
         try {
+            console.log('🚨 Imprimiendo ticket de prueba...');
+            await this.ensureConfigLoaded();
+            
             let ticket = ESC_POS.INIT;
 
             ticket += ESC_POS.ALIGN_CENTER;
@@ -538,10 +901,15 @@ export class PrinterService {
             ticket += ESC_POS.LINE_FEED;
             ticket += ESC_POS.PAPER_CUT;
 
+            console.log(`   Configuración actual:`);
+            console.log(`   - Tipo: ${this.config.connectionType}`);
+            console.log(`   - Dispositivo: ${this.config.deviceName || 'N/A'}`);
+            console.log(`   - Ancho papel: ${this.config.paperWidth}mm`);
+            
             await this.sendToPrinter(ticket);
-            console.log('Test ticket printed successfully');
+            console.log('✅ Ticket de prueba impreso exitosamente');
         } catch (error) {
-            console.error('Error printing test ticket:', error);
+            console.error('❌ Error printing test ticket:', error);
             throw error;
         }
     }
