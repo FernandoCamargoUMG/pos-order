@@ -3,7 +3,8 @@
 // The list of file replacements can be found in `angular.json`.
 
 export const environment = {
-  production: false
+  production: false,
+  apiUrl: 'http://192.168.1.6:3000/api/v1' // IP de la PC donde corre el backend
 };
 
 /*

@@ -16,7 +16,11 @@ import {
     IonCardHeader,
     IonCardTitle,
     IonCardContent,
-    Platform
+    Platform,
+    IonSpinner,
+    IonBadge,
+    AlertController,
+    ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -30,9 +34,14 @@ import {
     bagAddOutline,
     optionsOutline,
     cashOutline,
-    printOutline
+    printOutline,
+    cloudUploadOutline,
+    cloudDoneOutline,
+    cloudOfflineOutline,
+    refreshOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../core/services/auth.service';
+import { SyncService } from '../../core/services/sync.service';
 import { App } from '@capacitor/app';
 
 @Component({
@@ -55,10 +64,17 @@ import { App } from '@capacitor/app';
         IonCard,
         IonCardHeader,
         IonCardTitle,
-        IonCardContent
+        IonCardContent,
+        IonSpinner,
+        IonBadge
     ]
 })
 export class AdminMenuPage implements OnInit, OnDestroy {
+
+    isOnline = false;
+    isSyncing = false;
+    lastSyncTime: Date | null = null;
+    pendingItems = 0;
 
     menuOptions = [
         {
@@ -135,8 +151,11 @@ export class AdminMenuPage implements OnInit, OnDestroy {
 
     constructor(
         private authService: AuthService,
+        private syncService: SyncService,
         private router: Router,
-        private platform: Platform
+        private platform: Platform,
+        private alertController: AlertController,
+        private toastController: ToastController
     ) {
         addIcons({
             logOutOutline,
@@ -149,7 +168,11 @@ export class AdminMenuPage implements OnInit, OnDestroy {
             bagAddOutline,
             optionsOutline,
             cashOutline,
-            printOutline
+            printOutline,
+            cloudUploadOutline,
+            cloudDoneOutline,
+            cloudOfflineOutline,
+            refreshOutline
         });
     }
 
@@ -160,6 +183,95 @@ export class AdminMenuPage implements OnInit, OnDestroy {
             // El usuario debe usar el botón de Salir explícitamente
             // No se ejecuta el comportamiento por defecto
         });
+
+        // Actualizar estado de sincronización
+        this.updateSyncStatus();
+        
+        // Verificar estado cada 10 segundos
+        setInterval(() => {
+            this.updateSyncStatus();
+        }, 10000);
+    }
+
+    async updateSyncStatus() {
+        this.isOnline = await this.syncService.checkConnection();
+        const status = this.syncService.getSyncStatus();
+        this.lastSyncTime = status.lastSync;
+        this.pendingItems = status.pendingItems;
+    }
+
+    async manualSync() {
+        if (this.isSyncing) return;
+        
+        this.isSyncing = true;
+        
+        try {
+            const isOnline = await this.syncService.checkConnection();
+            
+            if (!isOnline) {
+                const toast = await this.toastController.create({
+                    message: '⚠️ Backend no disponible. Trabajando en modo offline.',
+                    duration: 3000,
+                    position: 'top',
+                    color: 'warning'
+                });
+                await toast.present();
+                return;
+            }
+
+            console.log('🔄 Iniciando sincronización manual...');
+            await this.syncService.fullSync();
+            await this.updateSyncStatus();
+            
+            const toast = await this.toastController.create({
+                message: '✅ Sincronización completada exitosamente',
+                duration: 2000,
+                position: 'top',
+                color: 'success'
+            });
+            await toast.present();
+            
+        } catch (error) {
+            console.error('Error en sincronización:', error);
+            
+            const toast = await this.toastController.create({
+                message: '❌ Error al sincronizar. Intenta nuevamente.',
+                duration: 3000,
+                position: 'top',
+                color: 'danger'
+            });
+            await toast.present();
+        } finally {
+            this.isSyncing = false;
+        }
+    }
+
+    async showSyncInfo() {
+        const alert = await this.alertController.create({
+            header: 'Estado de Sincronización',
+            message: `
+                <strong>Estado:</strong> ${this.isOnline ? '🟢 Online' : '🔴 Offline'}<br>
+                <strong>Última sync:</strong> ${this.lastSyncTime ? this.formatDate(this.lastSyncTime) : 'Nunca'}<br>
+                <strong>Pendientes:</strong> ${this.pendingItems} items
+            `,
+            buttons: ['OK']
+        });
+        
+        await alert.present();
+    }
+
+    formatDate(date: Date): string {
+        const now = new Date();
+        const diff = now.getTime() - new Date(date).getTime();
+        const minutes = Math.floor(diff / 60000);
+        
+        if (minutes < 1) return 'Hace un momento';
+        if (minutes < 60) return `Hace ${minutes} min`;
+        
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `Hace ${hours} horas`;
+        
+        return new Date(date).toLocaleDateString();
     }
 
     ngOnDestroy() {

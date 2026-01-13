@@ -4,6 +4,10 @@ const config: CapacitorConfig = {
   appId: 'io.ionic.starter',
   appName: 'Monsterburger',
   webDir: 'www',
+  server: {
+    cleartext: true,
+    androidScheme: 'http'
+  },
   plugins: {
     CapacitorSQLite: {
       iosDatabaseLocation: 'Library/CapacitorDatabase',

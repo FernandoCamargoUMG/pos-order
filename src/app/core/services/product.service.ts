@@ -2,15 +2,37 @@ import { Injectable } from '@angular/core';
 import { DatabaseService } from '../database/database.service';
 import { Product } from '../models';
 import { v4 as uuidv4 } from 'uuid';
+import { SyncService } from './sync.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ProductService {
 
-  constructor(private db: DatabaseService) {}
+  constructor(
+    private db: DatabaseService,
+    private syncService: SyncService
+  ) {
+    // Sincronizar productos al iniciar el servicio si estamos online
+    this.initSync();
+  }
+
+  private async initSync() {
+    try {
+      const isOnline = await this.syncService.checkConnection();
+      if (isOnline) {
+        console.log('Sincronizando productos al iniciar...');
+        await this.syncService.syncProducts();
+      }
+    } catch (error) {
+      console.log('No se pudo sincronizar productos al iniciar:', error);
+    }
+  }
 
   async getAllProducts(includeDeleted: boolean = false): Promise<Product[]> {
+    // NO sincronizar automáticamente aquí - solo leer datos locales
+    // La sincronización se hace explícitamente desde el UI o en background
+    
     const query = includeDeleted 
       ? 'SELECT * FROM products ORDER BY category, name'
       : 'SELECT * FROM products WHERE deleted_at IS NULL ORDER BY category, name';

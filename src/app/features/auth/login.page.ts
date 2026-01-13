@@ -15,8 +15,6 @@ import {
   IonLabel,
   IonInput,
   IonButton,
-  IonSelect,
-  IonSelectOption,
   IonSpinner,
   IonText
 } from '@ionic/angular/standalone';
@@ -43,8 +41,6 @@ import { Role } from '../../core/models';
     IonLabel,
     IonInput,
     IonButton,
-    IonSelect,
-    IonSelectOption,
     IonSpinner,
     IonText
   ]

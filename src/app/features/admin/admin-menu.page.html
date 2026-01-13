@@ -2,6 +2,24 @@
     <ion-toolbar color="primary">
         <ion-title>Monsterburger</ion-title>
         <ion-buttons slot="end">
+            <!-- Indicador de estado online/offline -->
+            <ion-button (click)="showSyncInfo()" fill="clear">
+                <ion-icon 
+                    slot="icon-only" 
+                    [name]="isOnline ? 'cloud-done-outline' : 'cloud-offline-outline'"
+                    [color]="isOnline ? 'success' : 'warning'">
+                </ion-icon>
+                <ion-badge *ngIf="pendingItems > 0" color="danger" style="position: absolute; top: 8px; right: 8px;">
+                    {{ pendingItems }}
+                </ion-badge>
+            </ion-button>
+            
+            <!-- Botón de sincronización manual -->
+            <ion-button (click)="manualSync()" [disabled]="isSyncing || !isOnline" fill="clear">
+                <ion-spinner *ngIf="isSyncing" slot="icon-only" name="crescent"></ion-spinner>
+                <ion-icon *ngIf="!isSyncing" slot="icon-only" name="refresh-outline"></ion-icon>
+            </ion-button>
+            
             <ion-button (click)="logout()">
                 <ion-icon slot="start" name="log-out-outline"></ion-icon>
                 Salir

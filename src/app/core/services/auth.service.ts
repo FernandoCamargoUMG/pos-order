@@ -3,6 +3,7 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { DatabaseService } from '../database/database.service';
 import { User, Role } from '../models';
 import { v4 as uuidv4 } from 'uuid';
+import { SyncService } from './sync.service';
 
 export interface AuthUser extends User {
   role?: Role;
@@ -16,7 +17,10 @@ export class AuthService {
   public currentUser$ = this.currentUserSubject.asObservable();
   private deviceId: string;
 
-  constructor(private db: DatabaseService) {
+  constructor(
+    private db: DatabaseService,
+    private syncService: SyncService
+  ) {
     this.deviceId = this.getOrCreateDeviceId();
   }
 
@@ -34,6 +38,28 @@ export class AuthService {
   }
 
   async login(username: string, pin: string): Promise<AuthUser> {
+    // Intentar primero con el backend si está online
+    try {
+      const isOnline = await this.syncService.checkConnection();
+      
+      if (isOnline) {
+        console.log('🌐 Backend online - intentando login remoto...');
+        const backendResponse = await this.syncService.loginWithBackend(username, pin);
+        
+        if (backendResponse) {
+          console.log('✅ Login exitoso con backend');
+          
+          // Sincronizar datos después del login exitoso
+          console.log('🔄 Iniciando sincronización completa...');
+          await this.syncService.fullSync();
+          console.log('✅ Sincronización completa exitosa');
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Backend no disponible o error en login, usando autenticación local', error);
+    }
+
+    // Consultar usuario local (ya sea que se haya sincronizado o no)
     const query = `
       SELECT u.*, r.name as role_name 
       FROM users u
