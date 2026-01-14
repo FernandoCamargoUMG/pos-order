@@ -85,3 +85,42 @@ ion-grid {
   max-width: 1200px;
   margin: 0 auto;
 }
+
+// Estilos para el diálogo de sincronización
+::ng-deep .sync-info-alert {
+  .alert-message {
+    text-align: left;
+    padding: 16px 0;
+  }
+  
+  .sync-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .sync-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+  
+  .sync-label {
+    font-weight: 600;
+    color: var(--ion-color-medium);
+    font-size: 14px;
+  }
+  
+  .sync-value {
+    font-weight: 500;
+    color: var(--ion-color-light);
+    font-size: 15px;
+    text-align: right;
+  }
+}

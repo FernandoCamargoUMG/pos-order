@@ -34,6 +34,12 @@ export class TableService {
       'UPDATE tables SET status = ?, updated_at = datetime(\'now\') WHERE id = ?',
       [status, tableId]
     );
+    
+    // Agregar a sync_queue para sincronizar con backend
+    await this.dbService.run(
+      'INSERT OR REPLACE INTO sync_queue (entity, entity_id) VALUES (?, ?)',
+      ['table', String(tableId)]
+    );
   }
 
   async assignOrderToTable(tableId: number, orderId: string, deviceId: string): Promise<void> {
@@ -46,6 +52,12 @@ export class TableService {
         updated_at = datetime('now') 
       WHERE id = ?`,
       [orderId, deviceId, tableId]
+    );
+    
+    // Agregar a sync_queue para sincronizar con backend
+    await this.dbService.run(
+      'INSERT OR REPLACE INTO sync_queue (entity, entity_id) VALUES (?, ?)',
+      ['table', String(tableId)]
     );
   }
 
@@ -60,12 +72,24 @@ export class TableService {
       WHERE id = ?`,
       [tableId]
     );
+    
+    // Agregar a sync_queue para sincronizar con backend
+    await this.dbService.run(
+      'INSERT OR REPLACE INTO sync_queue (entity, entity_id) VALUES (?, ?)',
+      ['table', String(tableId)]
+    );
   }
 
   async setTablePaying(tableId: number): Promise<void> {
     await this.dbService.run(
       'UPDATE tables SET status = \'PAYING\', updated_at = datetime(\'now\') WHERE id = ?',
       [tableId]
+    );
+    
+    // Agregar a sync_queue para sincronizar con backend
+    await this.dbService.run(
+      'INSERT OR REPLACE INTO sync_queue (entity, entity_id) VALUES (?, ?)',
+      ['table', String(tableId)]
     );
   }
 

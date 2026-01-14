@@ -113,12 +113,36 @@ export class OrderService {
     const now = new Date().toISOString();
 
     try {
-      // 1. Insertar orden
+      // Obtener userId del usuario logueado
+      let userId = null;
+      const userDataStr = localStorage.getItem('current_user');
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          // Priorizar id_backend (UUID del backend) sobre id_local
+          userId = userData.id_backend || userData.idBackend || userData.id_local || userData.idLocal || userData.id;
+          console.log('👤 Usuario detectado para orden:', userId);
+        } catch (e) {
+          console.error('Error al parsear userData:', e);
+        }
+      }
+      
+      // Si no hay usuario en localStorage, buscar en DB
+      if (!userId) {
+        const userResult = await db.query('SELECT id_backend, id_local FROM users WHERE active = 1 AND deleted_at IS NULL LIMIT 1');
+        if (userResult.values && userResult.values.length > 0) {
+          // Priorizar id_backend si existe
+          userId = userResult.values[0].id_backend || userResult.values[0].id_local;
+          console.log('👤 Usuario detectado desde DB:', userId);
+        }
+      }
+
+      // 1. Insertar orden CON user_id
       const orderInsert = `
-        INSERT INTO orders (id_local, table_id, device_id, status, printed, conflict, created_at)
-        VALUES (?, ?, ?, ?, 0, 0, ?)
+        INSERT INTO orders (id_local, table_id, user_id, device_id, status, printed, conflict, created_at)
+        VALUES (?, ?, ?, ?, ?, 0, 0, ?)
       `;
-      await db.run(orderInsert, [orderId, tableId, deviceId, 'SENT', now]);
+      await db.run(orderInsert, [orderId, tableId, userId, deviceId, 'SENT', now]);
 
       // 2. Insertar items de la orden
       for (const item of items) {
@@ -141,6 +165,12 @@ export class OrderService {
           }
         }
       }
+
+      // 4. Agregar a sync_queue para sincronizar con backend
+      const syncQueueInsert = `
+        INSERT OR REPLACE INTO sync_queue (entity, entity_id) VALUES (?, ?)
+      `;
+      await db.run(syncQueueInsert, ['order', orderId]);
 
       console.log(`Orden ${orderId} creada con ${items.length} items`);
       return orderId;
@@ -196,6 +226,10 @@ export class OrderService {
     const db = this.dbService.getDB();
     const updateQuery = `UPDATE orders SET status = ?, updated_at = datetime('now', 'localtime') WHERE id_local = ?`;
     await db.run(updateQuery, [status, orderId]);
+    
+    // Agregar a sync_queue para sincronizar con backend
+    const syncQueueInsert = `INSERT OR REPLACE INTO sync_queue (entity, entity_id) VALUES (?, ?)`;
+    await db.run(syncQueueInsert, ['order', orderId]);
   }
 
   /**

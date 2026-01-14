@@ -30,6 +30,7 @@ import {
 } from '@ionic/angular/standalone';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { SyncService } from '../../core/services/sync.service';
 import { OrderService } from '../../core/services/order.service';
 import { TableService } from '../../core/services/table.service';
 import { addIcons } from 'ionicons';
@@ -106,11 +107,13 @@ export class KdsPage implements OnInit, OnDestroy {
     finishedOrders: KitchenOrder[] = [];
     
     private refreshSubscription?: Subscription;
+    private syncSubscription?: Subscription;
     private audioContext?: AudioContext;
     private lastOrderCount = 0;
 
     constructor(
         private authService: AuthService,
+        private syncService: SyncService,
         private orderService: OrderService,
         private tableService: TableService,
         private router: Router,
@@ -145,6 +148,14 @@ export class KdsPage implements OnInit, OnDestroy {
         
         await this.loadOrders();
         
+        // Escuchar eventos de sincronización de órdenes
+        this.syncSubscription = this.syncService.onSyncCompleted.subscribe(event => {
+            if (event.entity === 'orders') {
+                console.log('🔄 Órdenes actualizadas desde backend, recargando cocina...');
+                this.loadOrders(true);
+            }
+        });
+        
         // Auto-refresh cada 10 segundos
         this.refreshSubscription = interval(10000).subscribe(() => {
             this.loadOrders(true);
@@ -159,6 +170,7 @@ export class KdsPage implements OnInit, OnDestroy {
 
     ngOnDestroy() {
         this.refreshSubscription?.unsubscribe();
+        this.syncSubscription?.unsubscribe();
     }
 
     async loadOrders(silent: boolean = false) {

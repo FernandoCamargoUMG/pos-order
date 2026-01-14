@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
 import {
     IonHeader,
     IonToolbar,
@@ -42,6 +43,7 @@ import {
 } from 'ionicons/icons';
 import { ProductService } from '../../core/services/product.service';
 import { AuthService } from '../../core/services/auth.service';
+import { SyncService } from '../../core/services/sync.service';
 import { Product } from '../../core/models';
 import { App } from '@capacitor/app';
 
@@ -85,10 +87,13 @@ export class ProductsPage implements OnInit, OnDestroy {
     showToast = false;
     toastMessage = '';
     productToDelete: Product | null = null;
+    
+    private syncSubscription?: Subscription;
 
     constructor(
         private productService: ProductService,
         private authService: AuthService,
+        private syncService: SyncService,
         private router: Router,
         private alertController: AlertController,
         private toastController: ToastController,
@@ -112,6 +117,14 @@ export class ProductsPage implements OnInit, OnDestroy {
     async ngOnInit() {
         await this.loadProducts();
         await this.loadCategories();
+        
+        // Escuchar eventos de sincronización de productos
+        this.syncSubscription = this.syncService.onSyncCompleted.subscribe(event => {
+            if (event.entity === 'products') {
+                console.log('🔄 Productos actualizados desde backend, recargando...');
+                this.loadProducts();
+            }
+        });
 
         // Registrar listener para el botón de atrás del hardware con alta prioridad
         this.platform.backButton.subscribeWithPriority(10, () => {
@@ -121,7 +134,10 @@ export class ProductsPage implements OnInit, OnDestroy {
     }
 
     ngOnDestroy() {
-        // No necesitamos limpiar explícitamente, Angular lo hace automáticamente
+        // Limpiar suscripción
+        if (this.syncSubscription) {
+            this.syncSubscription.unsubscribe();
+        }
     }
 
     async ionViewWillEnter() {

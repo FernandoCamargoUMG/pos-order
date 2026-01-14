@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { firstValueFrom, timeout, tap, catchError, throwError } from 'rxjs';
+import { firstValueFrom, timeout, tap, catchError, throwError, Subject } from 'rxjs';
 import { DatabaseService } from '../database/database.service';
 import { environment } from '../../../environments/environment';
 
@@ -8,6 +8,11 @@ export interface SyncStatus {
   isOnline: boolean;
   lastSync: Date | null;
   pendingItems: number;
+}
+
+export interface SyncEvent {
+  entity: 'products' | 'tables' | 'orders';
+  timestamp: Date;
 }
 
 @Injectable({
@@ -20,14 +25,52 @@ export class SyncService {
     lastSync: null,
     pendingItems: 0
   };
+  
+  private autoSyncInterval: any = null;
+  private isSyncing = false;
+  private readonly AUTO_SYNC_INTERVAL = 1000; // 1 segundo - sincronización instantánea
+  
+  // Observable para notificar cambios a componentes
+  private syncCompleted$ = new Subject<SyncEvent>();
+  public onSyncCompleted = this.syncCompleted$.asObservable();
 
   constructor(
     private http: HttpClient,
     private db: DatabaseService
   ) {
-    this.checkConnection();
+    this.initAutoSync();
+  }
+  
+  private async initAutoSync() {
+    // Verificar conexión inicial
+    await this.checkConnection();
+    
+    // Iniciar sincronización automática
+    this.startAutoSync();
+    
     // Verificar conexión cada 30 segundos
     setInterval(() => this.checkConnection(), 30000);
+  }
+  
+  private startAutoSync() {
+    // Limpiar intervalo anterior si existe
+    if (this.autoSyncInterval) {
+      clearInterval(this.autoSyncInterval);
+    }
+    
+    // Sincronización automática cada 1 segundo (1000ms)
+    this.autoSyncInterval = setInterval(async () => {
+      if (this.syncStatus.isOnline && !this.isSyncing) {
+        await this.fullSync();
+      }
+    }, 1000); // Cambiado a 1 segundo para sincronización en tiempo real
+  }
+  
+  stopAutoSync() {
+    if (this.autoSyncInterval) {
+      clearInterval(this.autoSyncInterval);
+      this.autoSyncInterval = null;
+    }
   }
 
   private getAuthHeaders(): HttpHeaders {
@@ -40,37 +83,20 @@ export class SyncService {
 
   async checkConnection(): Promise<boolean> {
     try {
-      const url = `${this.apiUrl}/health`;
-      console.log('===========================================');
-      console.log('🔍 INTENTANDO CONECTAR');
-      console.log('URL:', url);
-      console.log('IP Backend esperada: 192.168.1.6:3000');
-      console.log('===========================================');
-      
       const response: any = await firstValueFrom(
-        this.http.get(url, {
+        this.http.get(`${this.apiUrl}/health`, {
           observe: 'response'
         }).pipe(
-          timeout(10000),
-          tap(() => console.log('✅ HTTP Request enviado')),
-          catchError((err: any) => {
-            console.error('❌ HTTP Error:', err);
-            return throwError(() => err);
-          })
+          timeout(10000)
         )
       );
       
       this.syncStatus.isOnline = true;
-      console.log('✅✅✅ BACKEND ONLINE - Status:', response.status);
-      console.log('Response:', response.body);
+      console.log('✅ Backend online');
       return true;
     } catch (error: any) {
       this.syncStatus.isOnline = false;
-      console.error('❌❌❌ BACKEND OFFLINE');
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error status:', error.status);
-      console.error('Full error:', JSON.stringify(error, null, 2));
+      console.log('❌ Backend offline');
       return false;
     }
   }
@@ -82,6 +108,43 @@ export class SyncService {
   // ============================================
   // SINCRONIZACIÓN DE PRODUCTOS
   // ============================================
+
+  async fullSync(): Promise<void> {
+    if (this.isSyncing) {
+      console.log('⚠️ Sincronización ya en progreso, saltando...');
+      return;
+    }
+    
+    if (!this.syncStatus.isOnline) {
+      console.log('No se puede sincronizar: backend offline');
+      return;
+    }
+    
+    try {
+      this.isSyncing = true;
+      console.log('🔄 Iniciando sincronización completa...');
+      
+      // Sincronizar productos
+      await this.syncProducts();
+      this.syncCompleted$.next({ entity: 'products', timestamp: new Date() });
+      
+      // IMPORTANTE: Sincronizar órdenes ANTES que mesas
+      // Así las órdenes se crean en backend primero y las mesas pueden referenciarlas
+      await this.syncOrders();
+      this.syncCompleted$.next({ entity: 'orders', timestamp: new Date() });
+      
+      // Sincronizar mesas (ahora pueden usar current_order_id del backend)
+      await this.syncTables();
+      this.syncCompleted$.next({ entity: 'tables', timestamp: new Date() });
+      
+      this.syncStatus.lastSync = new Date();
+      console.log('✅ Sincronización completa exitosa');
+    } catch (error) {
+      console.error('❌ Error en sincronización completa:', error);
+    } finally {
+      this.isSyncing = false;
+    }
+  }
 
   async syncProducts(): Promise<void> {
     if (!this.syncStatus.isOnline) {
@@ -106,8 +169,11 @@ export class SyncService {
 
       // PASO 3: UPSERT productos del backend (EXCEPTO los que acabamos de subir)
       for (const product of response) {
+        // Obtener el ID del backend (puede venir como idBackend o id)
+        const backendId = product.idBackend || product.id_backend || product.id;
+        
         // SALTAR productos que acabamos de crear/actualizar (evita duplicados)
-        if (processedIds.has(product.id)) {
+        if (processedIds.has(backendId)) {
           console.log(`Saltando ${product.name} (ya procesado)`);
           continue;
         }
@@ -115,7 +181,7 @@ export class SyncService {
         // Verificar si ya existe (por id_backend O id_local)
         const existing = await this.db.executeQuery<any>(
           'SELECT id_local, id_backend FROM products WHERE id_backend = ? OR id_local = ?',
-          [product.id, product.id]
+          [backendId, backendId]
         );
 
         if (existing && existing.length > 0) {
@@ -126,7 +192,7 @@ export class SyncService {
             SET id_backend = ?, name = ?, price = ?, category = ?, active = ?
             WHERE id_local = ?
           `, [
-            product.id,
+            backendId,
             product.name,
             product.price,
             product.category,
@@ -141,8 +207,8 @@ export class SyncService {
               id_local, id_backend, name, price, category, active
             ) VALUES (?, ?, ?, ?, ?, ?)
           `, [
-            product.id, // usar id del backend como id_local para nuevos
-            product.id, // id_backend
+            backendId, // usar id del backend como id_local para nuevos
+            backendId, // id_backend
             product.name,
             product.price,
             product.category,
@@ -162,6 +228,104 @@ export class SyncService {
   }
 
   // ============================================
+  // SINCRONIZACIÓN DE USUARIOS
+  // ============================================
+
+  async syncUsers(): Promise<void> {
+    if (!this.syncStatus.isOnline) {
+      console.log('No se pueden sincronizar usuarios: backend offline');
+      return;
+    }
+
+    try {
+      console.log('Sincronizando usuarios...');
+      
+      // PASO 1: Obtener usuarios locales que NO tienen id_backend
+      const localUsers = await this.db.executeQuery<any>(`
+        SELECT * FROM users WHERE id_backend IS NULL AND deleted_at IS NULL
+      `);
+
+      // PASO 2: Crear usuarios locales en el backend
+      for (const user of localUsers) {
+        try {
+          const response: any = await firstValueFrom(
+            this.http.post(`${this.apiUrl}/users`, {
+              username: user.username,
+              pin: user.pin,
+              roleId: user.role_id,
+              active: user.active === 1
+            }, {
+              headers: this.getAuthHeaders()
+            })
+          );
+
+          const backendId = response.idLocal || response.id_local || response.id;
+          
+          // Actualizar id_backend del usuario local
+          await this.db.executeQuery(
+            'UPDATE users SET id_backend = ? WHERE id_local = ?',
+            [backendId, user.id_local]
+          );
+          
+          console.log(`✅ Usuario ${user.username} sincronizado con backend: ${backendId}`);
+          
+          // Si es el usuario logueado, actualizar localStorage
+          const currentUserStr = localStorage.getItem('current_user');
+          if (currentUserStr) {
+            const currentUser = JSON.parse(currentUserStr);
+            if (currentUser.id_local === user.id_local) {
+              currentUser.id_backend = backendId;
+              localStorage.setItem('current_user', JSON.stringify(currentUser));
+              console.log('✅ Usuario logueado actualizado en localStorage');
+            }
+          }
+        } catch (error: any) {
+          // Si el usuario ya existe en backend (error 409 o similar), intentar obtenerlo
+          if (error.status === 409 || error.status === 400) {
+            try {
+              const existingUsers = await firstValueFrom(
+                this.http.get<any[]>(`${this.apiUrl}/users`, {
+                  headers: this.getAuthHeaders()
+                })
+              );
+              
+              const matchingUser = existingUsers.find(u => u.username === user.username);
+              if (matchingUser) {
+                const backendId = matchingUser.idLocal || matchingUser.id_local || matchingUser.id;
+                await this.db.executeQuery(
+                  'UPDATE users SET id_backend = ? WHERE id_local = ?',
+                  [backendId, user.id_local]
+                );
+                console.log(`✅ Usuario ${user.username} vinculado con backend existente: ${backendId}`);
+                
+                // Actualizar localStorage si es el usuario logueado
+                const currentUserStr = localStorage.getItem('current_user');
+                if (currentUserStr) {
+                  const currentUser = JSON.parse(currentUserStr);
+                  if (currentUser.id_local === user.id_local) {
+                    currentUser.id_backend = backendId;
+                    localStorage.setItem('current_user', JSON.stringify(currentUser));
+                  }
+                }
+              }
+            } catch (fetchError) {
+              console.error(`Error obteniendo usuario ${user.username} del backend:`, fetchError);
+            }
+          } else {
+            console.error(`Error sincronizando usuario ${user.username}:`, error);
+          }
+        }
+      }
+
+      console.log('Usuarios sincronizados correctamente');
+
+    } catch (error) {
+      console.error('Error sincronizando usuarios:', error);
+      throw error;
+    }
+  }
+
+  // ============================================
   // SINCRONIZACIÓN DE MESAS
   // ============================================
 
@@ -174,6 +338,10 @@ export class SyncService {
     try {
       console.log('Sincronizando mesas...');
       
+      // PASO 1: Enviar cambios locales pendientes al backend y obtener IDs procesados
+      const processedIds = await this.pushLocalTableChanges();
+      
+      // PASO 2: Obtener mesas del backend
       const response = await firstValueFrom(
         this.http.get<any[]>(`${this.apiUrl}/tables`, {
           headers: this.getAuthHeaders()
@@ -182,23 +350,59 @@ export class SyncService {
 
       console.log(`Recibidas ${response.length} mesas del backend`);
 
-      // UPSERT mesas del backend (INSERT OR REPLACE)
+      // PASO 3: UPSERT mesas del backend (EXCEPTO las que acabamos de subir)
       for (const table of response) {
-        await this.db.executeQuery(`
-          INSERT OR REPLACE INTO tables (
-            id, level_id, name, status, current_order_id,
-            owner_device_id, locked_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          table.id,
-          table.levelId,
-          table.name,
-          table.status,
-          table.currentOrderId,
-          table.ownerDeviceId,
-          table.lockedAt,
-          table.updatedAt
-        ]);
+        const tableId = table.id;
+        
+        // SALTAR mesas que acabamos de actualizar (evita sobrescribir cambios locales)
+        if (processedIds.has(tableId)) {
+          console.log(`Saltando mesa ${table.name} (ya procesada)`);
+          continue;
+        }
+
+        // Verificar si la mesa existe
+        const existing = await this.db.executeQuery<any>(
+          'SELECT id FROM tables WHERE id = ?',
+          [tableId]
+        );
+
+        if (existing && existing.length > 0) {
+          // ACTUALIZAR mesa existente
+          await this.db.executeQuery(`
+            UPDATE tables 
+            SET level_id = ?, name = ?, status = ?, current_order_id = ?,
+                owner_device_id = ?, locked_at = ?, updated_at = ?
+            WHERE id = ?
+          `, [
+            table.levelId,
+            table.name,
+            table.status,
+            table.currentOrderId,
+            table.ownerDeviceId,
+            table.lockedAt,
+            table.updatedAt,
+            tableId
+          ]);
+          console.log(`Actualizada: ${table.name} (status: ${table.status})`);
+        } else {
+          // INSERTAR nueva mesa
+          await this.db.executeQuery(`
+            INSERT INTO tables (
+              id, level_id, name, status, current_order_id,
+              owner_device_id, locked_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            tableId,
+            table.levelId,
+            table.name,
+            table.status,
+            table.currentOrderId,
+            table.ownerDeviceId,
+            table.lockedAt,
+            table.updatedAt
+          ]);
+          console.log(`Insertada: ${table.name}`);
+        }
       }
 
       this.syncStatus.lastSync = new Date();
@@ -208,6 +412,422 @@ export class SyncService {
       console.error('Error sincronizando mesas:', error);
       throw error;
     }
+  }
+  
+  /**
+   * Envía cambios locales de mesas al backend
+   * Retorna Set de IDs procesados para evitar sobrescribirlos después
+   */
+  private async pushLocalTableChanges(): Promise<Set<number>> {
+    const processedIds = new Set<number>();
+    
+    try {
+      // Obtener mesas que tienen cambios pendientes en sync_queue
+      const pendingTables = await this.db.executeQuery<any>(`
+        SELECT DISTINCT t.* 
+        FROM tables t
+        INNER JOIN sync_queue sq ON sq.entity_id = CAST(t.id AS TEXT) AND sq.entity = 'table'
+        WHERE t.deleted_at IS NULL
+      `);
+
+      if (pendingTables.length > 0) {
+        console.log(`📤 Enviando ${pendingTables.length} mesas al backend...`);
+      }
+
+      for (const table of pendingTables) {
+        try {
+          // Si la mesa tiene current_order_id, verificar si existe en backend
+          let backendOrderId = table.current_order_id;
+          
+          if (table.current_order_id) {
+            const orderCheck = await this.db.executeQuery<any>(
+              'SELECT id_backend FROM orders WHERE id_local = ?',
+              [table.current_order_id]
+            );
+            
+            if (orderCheck && orderCheck.length > 0 && orderCheck[0].id_backend) {
+              // Usar el ID del backend si existe
+              backendOrderId = orderCheck[0].id_backend;
+            } else {
+              // Si la orden no tiene id_backend aún, saltar esta mesa
+              // La próxima sincronización la procesará cuando la orden tenga id_backend
+              console.log(`⏭ Saltando mesa ${table.name} - orden aún no sincronizada`);
+              continue;
+            }
+          }
+          
+          // Actualizar mesa en backend
+          await firstValueFrom(
+            this.http.put(`${this.apiUrl}/tables/${table.id}`, {
+              levelId: table.level_id,
+              name: table.name,
+              status: table.status,
+              currentOrderId: backendOrderId,
+              ownerDeviceId: table.owner_device_id
+            }, {
+              headers: this.getAuthHeaders()
+            })
+          );
+          
+          processedIds.add(table.id);
+          console.log(`✅ Mesa ${table.name} actualizada en backend (status: ${table.status})`);
+          
+          // Limpiar de cola de sincronización
+          await this.db.executeQuery(
+            'DELETE FROM sync_queue WHERE entity = ? AND entity_id = ?',
+            ['table', table.id.toString()]
+          );
+        } catch (error) {
+          console.error(`❌ Error actualizando mesa ${table.name}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error enviando cambios de mesas:', error);
+    }
+    
+    return processedIds;
+  }
+  
+  async syncOrders(): Promise<void> {
+    if (!this.syncStatus.isOnline) {
+      console.log('No se pueden sincronizar órdenes: backend offline');
+      return;
+    }
+
+    try {
+      console.log('Sincronizando órdenes...');
+      
+      // PASO 1: Enviar órdenes locales pendientes al backend y obtener IDs procesados
+      const processedIds = await this.pushLocalOrderChanges();
+
+      // PASO 2: Obtener órdenes del backend
+      const response = await firstValueFrom(
+        this.http.get<any[]>(`${this.apiUrl}/orders`, {
+          headers: this.getAuthHeaders()
+        })
+      );
+
+      console.log(`Recibidas ${response.length} órdenes del backend`);
+
+      // PASO 3: UPSERT órdenes del backend (EXCEPTO las que acabamos de subir)
+      for (const order of response) {
+        const backendId = order.idBackend || order.id_backend || order.id;
+        
+        // SALTAR órdenes que acabamos de crear/actualizar
+        if (processedIds.has(backendId)) {
+          console.log(`Saltando orden ${backendId} (ya procesada)`);
+          continue;
+        }
+        
+        const existing = await this.db.executeQuery<any>(
+          'SELECT id_local, id_backend FROM orders WHERE id_backend = ? OR id_local = ?',
+          [backendId, backendId]
+        );
+
+        const localOrderId = existing && existing.length > 0 ? existing[0].id_local : backendId;
+
+        if (existing && existing.length > 0) {
+          // Actualizar orden existente
+          await this.db.executeQuery(`
+            UPDATE orders 
+            SET id_backend = ?, table_id = ?, status = ?, notes = ?, device_id = ?, updated_at = ?
+            WHERE id_local = ?  
+          `, [backendId, order.tableId, order.status, order.notes, order.deviceId, order.updatedAt, localOrderId]);
+        } else {
+          // Insertar nueva orden
+          await this.db.executeQuery(`
+            INSERT INTO orders (id_local, id_backend, table_id, status, notes, device_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `, [backendId, backendId, order.tableId, order.status, order.notes, order.deviceId, order.createdAt, order.updatedAt]);
+        }
+
+        // PASO 4: Sincronizar items de la orden
+        if (order.items && order.items.length > 0) {
+          // Eliminar items antiguos para evitar duplicados
+          await this.db.executeQuery('DELETE FROM order_items WHERE order_id = ?', [localOrderId]);
+
+          for (const item of order.items) {
+            const itemId = item.idLocal || item.id_local || item.id || `ITEM-${Date.now()}-${Math.random()}`;
+            
+            // Insertar item
+            await this.db.executeQuery(`
+              INSERT INTO order_items (id_local, order_id, product_id, quantity, price, notes)
+              VALUES (?, ?, ?, ?, ?, ?)
+            `, [itemId, localOrderId, item.productId, item.quantity, item.price, item.notes || null]);
+
+            // Insertar modificadores del item
+            if (item.modifiers && item.modifiers.length > 0) {
+              // Eliminar modificadores antiguos
+              await this.db.executeQuery('DELETE FROM order_item_modifiers WHERE order_item_id = ?', [itemId]);
+              
+              for (const modifier of item.modifiers) {
+                await this.db.executeQuery(`
+                  INSERT INTO order_item_modifiers (order_item_id, modifier)
+                  VALUES (?, ?)
+                `, [itemId, modifier.modifier || modifier]);
+              }
+            }
+          }
+        }
+
+        // PASO 5: Actualizar current_order_id de la mesa si la orden está activa
+        if (order.status !== 'CLOSED' && order.status !== 'CANCELLED') {
+          await this.db.executeQuery(`
+            UPDATE tables 
+            SET current_order_id = ?, 
+                status = CASE 
+                  WHEN ? = 'SENT' OR ? = 'PENDING' THEN 'OCCUPIED'
+                  WHEN ? = 'PAYING' THEN 'PAYING'
+                  ELSE status 
+                END,
+                updated_at = ?
+            WHERE id = ?
+          `, [localOrderId, order.status, order.status, order.status, order.updatedAt, order.tableId]);
+        }
+      }
+
+      this.syncStatus.lastSync = new Date();
+      console.log('Órdenes sincronizadas correctamente');
+
+    } catch (error) {
+      console.error('Error sincronizando órdenes:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Envía cambios locales de órdenes al backend
+   * Retorna Set de IDs procesados para evitar sobrescribirlos después
+   */
+  private async pushLocalOrderChanges(): Promise<Set<string>> {
+    const processedIds = new Set<string>();
+    
+    try {
+      // Obtener órdenes que tienen cambios pendientes en sync_queue
+      const pendingOrders = await this.db.executeQuery<any>(`
+        SELECT DISTINCT o.* 
+        FROM orders o
+        INNER JOIN sync_queue sq ON sq.entity_id = o.id_local AND sq.entity = 'order'
+        WHERE o.deleted_at IS NULL
+      `);
+
+      if (pendingOrders.length > 0) {
+        console.log(`📤 Enviando ${pendingOrders.length} órdenes al backend...`);
+      }
+
+      for (const order of pendingOrders) {
+        try {
+          if (!order.id_backend) {
+            console.log(`🔍 Procesando orden ${order.id_local}...`);
+            
+            // Obtener items de la orden CON modificadores
+            const orderItems = await this.db.executeQuery<any>(`
+              SELECT oi.*, p.name as product_name, p.id_backend as product_backend_id,
+                     GROUP_CONCAT(oim.modifier) as modifiers
+              FROM order_items oi
+              LEFT JOIN products p ON p.id_local = oi.product_id
+              LEFT JOIN order_item_modifiers oim ON oi.id_local = oim.order_item_id
+              WHERE oi.order_id = ? AND oi.deleted_at IS NULL
+              GROUP BY oi.id_local
+            `, [order.id_local]);
+
+            if (orderItems.length === 0) {
+              console.warn(`⚠️ Orden ${order.id_local} no tiene items, saltando...`);
+              continue;
+            }
+
+            // Validar que todos los productos tengan id_backend
+            const itemsWithoutBackendId = orderItems.filter((item: any) => !item.product_backend_id);
+            if (itemsWithoutBackendId.length > 0) {
+              console.warn(`⚠️ Orden ${order.id_local} tiene productos sin id_backend, esperando sincronización de productos...`);
+              console.warn(`Productos sin sincronizar: ${itemsWithoutBackendId.map((i: any) => i.product_name).join(', ')}`);
+              continue; // Saltar esta orden hasta que los productos se sincronicen
+            }
+
+            console.log(`🔍 Items raw de orden ${order.id_local}:`, orderItems);
+
+            // Formatear items para el backend - USAR id_backend de productos y cargar modificadores
+            const items = orderItems.map((item: any) => ({
+              productId: item.product_backend_id, // SIEMPRE usar id_backend del producto
+              quantity: item.quantity,
+              price: item.price,
+              notes: item.notes || undefined,
+              modifiers: item.modifiers ? item.modifiers.split(',').filter((m: string) => m.trim()) : []
+            }));
+
+            console.log(`✅ Items formateados para backend:`, items);
+
+            // Verificar que todos los productos tienen backend ID
+            const invalidItems = items.filter(item => !item.productId);
+            if (invalidItems.length > 0) {
+              console.error(`❌ Orden ${order.id_local} tiene ${invalidItems.length} items sin backend ID`);
+              continue;
+            }
+
+            // Obtener userId - DEBE ser un UUID válido del backend
+            let userId = null;
+            
+            // OPCIÓN 1: Intentar obtener de localStorage si tiene id_backend
+            const userDataStr = localStorage.getItem('current_user');
+            if (userDataStr) {
+              try {
+                const userData = JSON.parse(userDataStr);
+                console.log(`🔍 userData completo:`, userData);
+                // SOLO usar id_backend si existe (es un UUID del backend)
+                if (userData.id_backend) {
+                  userId = userData.id_backend;
+                  console.log(`👤 Usuario detectado de localStorage (id_backend): ${userId}`);
+                }
+              } catch (e) {
+                console.error('❌ Error al parsear user data:', e);
+              }
+            }
+            
+            // OPCIÓN 2: Si no hay id_backend en local, obtener usuarios del backend
+            if (!userId) {
+              try {
+                console.log('🔍 Obteniendo usuarios del backend...');
+                const backendUsers: any = await firstValueFrom(
+                  this.http.get(`${this.apiUrl}/users`, {
+                    headers: this.getAuthHeaders()
+                  })
+                );
+                
+                if (backendUsers && backendUsers.length > 0) {
+                  // Usar el primer usuario activo del backend
+                  const activeUser = backendUsers.find((u: any) => u.active) || backendUsers[0];
+                  userId = activeUser.idLocal || activeUser.id_local || activeUser.id;
+                  console.log(`👤 Usuario obtenido del backend: ${userId} (${activeUser.username})`);
+                  
+                  // Guardar el id_backend en el usuario local para futuras órdenes
+                  const localUsers = await this.db.executeQuery<any>(`
+                    SELECT id_local FROM users WHERE active = 1 LIMIT 1
+                  `);
+                  if (localUsers.length > 0) {
+                    await this.db.executeQuery(
+                      'UPDATE users SET id_backend = ? WHERE id_local = ?',
+                      [userId, localUsers[0].id_local]
+                    );
+                    
+                    // Actualizar localStorage si es el usuario actual
+                    if (userDataStr) {
+                      const userData = JSON.parse(userDataStr);
+                      userData.id_backend = userId;
+                      localStorage.setItem('current_user', JSON.stringify(userData));
+                      console.log('✅ id_backend guardado en localStorage');
+                    }
+                  }
+                } else {
+                  console.error('❌ No hay usuarios en el backend');
+                  continue;
+                }
+              } catch (error) {
+                console.error('❌ Error obteniendo usuarios del backend:', error);
+                continue;
+              }
+            }
+            
+            if (!userId) {
+              console.error('❌ No se encontró userId válido, no se puede crear orden');
+              continue;
+            }
+
+            console.log(`✅ userId final seleccionado: ${userId}`);
+
+            // Las mesas usan INTEGER como PK, NO UUID. El tableId es el mismo en frontend y backend
+            const tableId = order.table_id;
+            
+            if (!tableId) {
+              console.error(`❌ Orden ${order.id_local} no tiene table_id`);
+              continue;
+            }
+
+            // Preparar payload para el backend
+            const orderPayload = {
+              tableId: tableId,
+              userId: userId,
+              deviceId: order.device_id,
+              notes: order.notes || undefined,
+              items: items
+            };
+
+            console.log(`📤 Creando orden en backend con ${items.length} items...`);
+            console.log(`📋 Payload completo:`, JSON.stringify(orderPayload, null, 2));
+
+            // Crear nueva orden
+            const response: any = await firstValueFrom(
+              this.http.post(`${this.apiUrl}/orders`, orderPayload, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            
+            const backendId = response.idBackend || response.id_backend || response.id;
+            
+            if (!backendId) {
+              console.error('❌ Backend no devolvió ID de orden');
+              continue;
+            }
+            
+            await this.db.executeQuery(
+              'UPDATE orders SET id_backend = ? WHERE id_local = ?',
+              [backendId, order.id_local]
+            );
+            
+            processedIds.add(backendId);
+            console.log(`✅ Orden creada en backend: ${backendId} con ${items.length} items`);
+            
+            // Eliminar de sync_queue
+            await this.db.executeQuery(
+              'DELETE FROM sync_queue WHERE entity = ? AND entity_id = ?',
+              ['order', order.id_local]
+            );
+          } else {
+            // Actualizar orden existente
+            console.log(`🔄 Actualizando orden ${order.id_backend}...`);
+            
+            // Las mesas usan INTEGER como PK, NO UUID. El tableId es el mismo en frontend y backend
+            const tableId = order.table_id;
+            
+            if (!tableId) {
+              console.error(`❌ Orden ${order.id_backend} no tiene table_id para actualizar`);
+              continue;
+            }
+            
+            await firstValueFrom(
+              this.http.put(`${this.apiUrl}/orders/${order.id_backend}`, {
+                tableId: tableId, // TableId es INTEGER, el mismo valor en frontend y backend
+                status: order.status,
+                totalAmount: order.total_amount,
+                notes: order.notes
+              }, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            
+            processedIds.add(order.id_backend);
+            console.log(`✅ Orden actualizada: ${order.id_backend}`);
+            
+            // Eliminar de sync_queue
+            await this.db.executeQuery(
+              'DELETE FROM sync_queue WHERE entity = ? AND entity_id = ?',
+              ['order', order.id_local]
+            );
+          }
+        } catch (error: any) {
+          console.error(`❌ Error sincronizando orden ${order.id_local}:`);
+          console.error(`Status: ${error.status}`);
+          console.error(`Message: ${error.message}`);
+          console.error(`Error completo:`, error);
+          if (error.error) {
+            console.error(`Error del backend:`, error.error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error enviando cambios de órdenes:', error);
+    }
+    
+    return processedIds;
   }
 
   // ============================================
@@ -291,13 +911,16 @@ export class SyncService {
               })
             );
             
+            // Obtener el ID del backend (puede venir como idBackend o id)
+            const backendId = response.idBackend || response.id_backend || response.id;
+            
             // SOLO actualizar id_backend (NO cambiar id_local que es PRIMARY KEY)
             await this.db.executeQuery(
               'UPDATE products SET id_backend = ? WHERE id_local = ?',
-              [response.id, product.id_local]
+              [backendId, product.id_local]
             );
-            console.log(`Producto creado en backend: ${product.name} (ID: ${response.id})`);
-            processedIds.add(response.id); // Marcar como procesado
+            console.log(`Producto creado en backend: ${product.name} (ID: ${backendId})`);
+            processedIds.add(backendId); // Marcar como procesado
             
             // Eliminar de sync_queue
             await this.db.executeQuery(
@@ -318,7 +941,39 @@ export class SyncService {
   }
 
   // ============================================
-  // SINCRONIZACIÓN DE ÓRDENES PENDIENTES
+  // SINCRONIZACIÓN MANUAL (llamado desde UI)
+  // ============================================
+
+  async manualSync(): Promise<{ success: boolean; message: string }> {
+    try {
+      // Verificar conexión primero
+      const isOnline = await this.checkConnection();
+      
+      if (!isOnline) {
+        return {
+          success: false,
+          message: 'No hay conexión con el backend'
+        };
+      }
+      
+      // Ejecutar sincronización completa
+      await this.fullSync();
+      
+      return {
+        success: true,
+        message: `Sincronización exitosa - ${new Date().toLocaleTimeString()}`
+      };
+    } catch (error: any) {
+      console.error('Error en sincronización manual:', error);
+      return {
+        success: false,
+        message: `Error: ${error.message || 'Error desconocido'}`
+      };
+    }
+  }
+
+  // ============================================
+  // SINCRONIZACIÓN DE ÓRDENES PENDIENTES (legacy)
   // ============================================
 
   async syncPendingOrders(): Promise<void> {
@@ -397,35 +1052,6 @@ export class SyncService {
 
     } catch (error) {
       console.error('Error sincronizando órdenes pendientes:', error);
-      throw error;
-    }
-  }
-
-  // ============================================
-  // SINCRONIZACIÓN COMPLETA
-  // ============================================
-
-  async fullSync(): Promise<void> {
-    console.log('Iniciando sincronización completa...');
-
-    const isOnline = await this.checkConnection();
-    
-    if (!isOnline) {
-      console.log('Backend offline. Trabajando en modo local.');
-      return;
-    }
-
-    try {
-      await this.syncProducts();
-      await this.syncTables();
-      await this.syncModifiers();
-      await this.syncPendingOrders();
-      
-      this.syncStatus.lastSync = new Date();
-      console.log('Sincronización completa exitosa');
-
-    } catch (error) {
-      console.error('Error en sincronización completa:', error);
       throw error;
     }
   }

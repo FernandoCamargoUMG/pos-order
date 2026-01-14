@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import {
   IonContent,
   IonHeader,
@@ -26,6 +27,7 @@ import {
 } from '@ionic/angular/standalone';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { SyncService } from '../../core/services/sync.service';
 import { TableService } from '../../core/services/table.service';
 import { OrderService } from '../../core/services/order.service';
 import { Table } from '../../core/models';
@@ -69,10 +71,13 @@ export class TablesPage implements OnInit, OnDestroy {
   tables: Table[] = [];
   filteredTables: Table[] = [];
   tableOrderCounts: Map<number, number> = new Map(); // Mapa de table_id -> cantidad de órdenes
+  
+  private syncSubscription?: Subscription;
 
   constructor(
     private authService: AuthService,
     private tableService: TableService,
+    private syncService: SyncService,
     private modalCtrl: ModalController,
     private alertCtrl: AlertController,
     private orderService: OrderService,
@@ -90,11 +95,26 @@ export class TablesPage implements OnInit, OnDestroy {
   async ngOnInit() {
     await this.loadTables();
     
+    // Escuchar eventos de sincronización de mesas
+    this.syncSubscription = this.syncService.onSyncCompleted.subscribe(event => {
+      if (event.entity === 'tables') {
+        console.log('🔄 Mesas actualizadas desde backend, recargando...');
+        this.loadTables();
+      }
+    });
+    
     this.platform.backButton.subscribeWithPriority(10, () => {
       if (this.isAdmin) {
         this.router.navigate(['/admin-menu']);
       }
     });
+  }
+  
+  ngOnDestroy() {
+    // Limpiar suscripción
+    if (this.syncSubscription) {
+      this.syncSubscription.unsubscribe();
+    }
   }
 
   async ionViewWillEnter() {
@@ -218,10 +238,6 @@ export class TablesPage implements OnInit, OnDestroy {
       // Permitir entrar para ver cuentas y cerrarlas
       this.router.navigate(['/order', table.id]);
     }
-  }
-
-  ngOnDestroy() {
-    // No necesitamos limpiar explícitamente, Angular lo hace automáticamente
   }
 
   async logout() {

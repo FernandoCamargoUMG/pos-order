@@ -206,54 +206,43 @@ export class AdminMenuPage implements OnInit, OnDestroy {
         this.isSyncing = true;
         
         try {
-            const isOnline = await this.syncService.checkConnection();
+            const result = await this.syncService.manualSync();
             
-            if (!isOnline) {
-                const toast = await this.toastController.create({
-                    message: '⚠️ Backend no disponible. Trabajando en modo offline.',
-                    duration: 3000,
-                    position: 'top',
-                    color: 'warning'
+            if (result.success) {
+                this.updateSyncStatus();
+                
+                const alert = await this.alertController.create({
+                    header: '✅ Sincronización exitosa',
+                    message: result.message,
+                    buttons: ['OK']
                 });
-                await toast.present();
-                return;
+                
+                await alert.present();
+            } else {
+                const alert = await this.alertController.create({
+                    header: '❌ Error',
+                    message: result.message,
+                    buttons: ['OK']
+                });
+                
+                await alert.present();
             }
-
-            console.log('🔄 Iniciando sincronización manual...');
-            await this.syncService.fullSync();
-            await this.updateSyncStatus();
-            
-            const toast = await this.toastController.create({
-                message: '✅ Sincronización completada exitosamente',
-                duration: 2000,
-                position: 'top',
-                color: 'success'
-            });
-            await toast.present();
-            
         } catch (error) {
             console.error('Error en sincronización:', error);
-            
-            const toast = await this.toastController.create({
-                message: '❌ Error al sincronizar. Intenta nuevamente.',
-                duration: 3000,
-                position: 'top',
-                color: 'danger'
-            });
-            await toast.present();
         } finally {
             this.isSyncing = false;
         }
     }
 
     async showSyncInfo() {
+        const statusIcon = this.isOnline ? '🟢' : '🔴';
+        const statusText = this.isOnline ? 'Conectado' : 'Sin conexión';
+        const lastSync = this.lastSyncTime ? this.formatDate(this.lastSyncTime) : 'Nunca';
+        
         const alert = await this.alertController.create({
             header: 'Estado de Sincronización',
-            message: `
-                <strong>Estado:</strong> ${this.isOnline ? '🟢 Online' : '🔴 Offline'}<br>
-                <strong>Última sync:</strong> ${this.lastSyncTime ? this.formatDate(this.lastSyncTime) : 'Nunca'}<br>
-                <strong>Pendientes:</strong> ${this.pendingItems} items
-            `,
+            subHeader: `${statusIcon} ${statusText}`,
+            message: `Última sincronización: ${lastSync}\nPendientes: ${this.pendingItems} items`,
             buttons: ['OK']
         });
         
