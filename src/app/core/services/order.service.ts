@@ -224,8 +224,27 @@ export class OrderService {
    */
   async updateOrderStatus(orderId: string, status: 'OPEN' | 'SENT' | 'PAYING' | 'CLOSED'): Promise<void> {
     const db = this.dbService.getDB();
-    const updateQuery = `UPDATE orders SET status = ?, updated_at = datetime('now', 'localtime') WHERE id_local = ?`;
-    await db.run(updateQuery, [status, orderId]);
+    
+    // Construir query dinámicamente
+    let updateQuery = `UPDATE orders SET status = ?, updated_at = datetime('now', 'localtime')`;
+    const params: any[] = [status];
+    
+    // Si cambia a SENT, también marcar como impreso
+    if (status === 'SENT') {
+      updateQuery += `, printed = 1`;
+      console.log('🖨️ Marcando orden como impresa (printed = 1)');
+    }
+    
+    updateQuery += ` WHERE id_local = ?`;
+    params.push(orderId);
+    
+    console.log('📝 Actualizando orden:', { orderId, status, query: updateQuery });
+    await db.run(updateQuery, params);
+    
+    // Verificar que se actualizó correctamente
+    const verifyQuery = `SELECT status, printed FROM orders WHERE id_local = ?`;
+    const result = await db.query(verifyQuery, [orderId]);
+    console.log('✅ Orden actualizada:', result.values?.[0]);
     
     // Agregar a sync_queue para sincronizar con backend
     const syncQueueInsert = `INSERT OR REPLACE INTO sync_queue (entity, entity_id) VALUES (?, ?)`;

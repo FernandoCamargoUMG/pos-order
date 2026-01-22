@@ -1151,7 +1151,8 @@ export class SyncService {
         try {
           // Mapear kitchen_status del móvil a kitchenStatus del backend
           const updateData: any = {
-            status: order.status
+            status: order.status,
+            printed: order.printed || 0  // SIEMPRE enviar printed (0 o 1)
           };
           
           // Solo incluir kitchenStatus si existe y no es null
@@ -1167,6 +1168,7 @@ export class SyncService {
           console.log(`📤 Sincronizando orden ${order.id_local} (backend: ${order.id_backend}):`, {
             status: order.status,
             kitchen_status: order.kitchen_status,
+            printed: order.printed,
             updateData
           });
           
@@ -1251,6 +1253,7 @@ export class SyncService {
               userId: order.user_id,
               deviceId: order.device_id,
               notes: order.notes,
+              status: order.status,  // Enviar el status actual (SENT, OPEN, etc)
               items: formattedItems
             }, {
               headers: this.getAuthHeaders()
