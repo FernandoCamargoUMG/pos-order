@@ -253,6 +253,10 @@ export class OrderService {
     const db = this.dbService.getDB();
     const updateQuery = `UPDATE orders SET kitchen_status = ?, updated_at = datetime('now', 'localtime') WHERE id_local = ?`;
     await db.run(updateQuery, [kitchenStatus, orderId]);
+    
+    // Agregar a sync_queue para sincronizar con backend
+    const syncQueueInsert = `INSERT OR REPLACE INTO sync_queue (entity, entity_id) VALUES (?, ?)`;
+    await db.run(syncQueueInsert, ['order', orderId]);
   }
 
   /**

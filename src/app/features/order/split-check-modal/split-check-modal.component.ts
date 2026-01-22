@@ -28,6 +28,7 @@ import { addIcons } from 'ionicons';
 import { closeOutline, addOutline, cardOutline, checkmarkOutline, trashOutline, swapHorizontalOutline, arrowForwardOutline } from 'ionicons/icons';
 import { OrderService, Order } from '../../../core/services/order.service';
 import { TableService } from '../../../core/services/table.service';
+import { SyncService } from '../../../core/services/sync.service';
 
 interface OrderWithItems extends Order {
   items: any[];
@@ -81,7 +82,8 @@ export class SplitCheckModalComponent implements OnInit {
     private alertController: AlertController,
     private toastController: ToastController,
     private orderService: OrderService,
-    private tableService: TableService
+    private tableService: TableService,
+    private syncService: SyncService
   ) {
     addIcons({ closeOutline, addOutline, cardOutline, checkmarkOutline, trashOutline, swapHorizontalOutline, arrowForwardOutline });
   }
@@ -398,6 +400,9 @@ export class SplitCheckModalComponent implements OnInit {
             await this.orderService.updateOrderStatus(order.id_local, 'PAYING');
             await this.updateTableStatus();
             await this.loadOrders();
+            // Sincronizar inmediatamente con el backend
+            await this.syncService.syncPendingOrders();
+            await this.syncService.syncTables();
           }
         }
       ]
@@ -417,6 +422,9 @@ export class SplitCheckModalComponent implements OnInit {
             await this.orderService.updateOrderStatus(order.id_local, 'CLOSED');
             await this.updateTableStatus();
             await this.loadOrders();
+            // Sincronizar inmediatamente con el backend
+            await this.syncService.syncPendingOrders();
+            await this.syncService.syncTables();
           }
         }
       ]

@@ -33,6 +33,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { SyncService } from '../../core/services/sync.service';
 import { OrderService } from '../../core/services/order.service';
 import { TableService } from '../../core/services/table.service';
+import { KdsService } from '../../core/services/kds.service';
 import { addIcons } from 'ionicons';
 import { 
     logOutOutline, 
@@ -116,6 +117,7 @@ export class KdsPage implements OnInit, OnDestroy {
         private syncService: SyncService,
         private orderService: OrderService,
         private tableService: TableService,
+        private kdsService: KdsService,
         private router: Router,
         private platform: Platform,
         private alertCtrl: AlertController,
@@ -287,6 +289,14 @@ export class KdsPage implements OnInit, OnDestroy {
         try {
             // Actualizar estado en la orden (usar campo personalizado)
             await this.orderService.updateOrderKitchenStatus(order.id_local, 'preparing');
+            
+            // Actualizar ticket KDS a IN_PROGRESS
+            await this.kdsService.updateTicketStatus(order.id_local, 'IN_PROGRESS');
+            
+            // Sincronizar inmediatamente tanto tickets como órdenes
+            await this.syncService.syncKdsTickets();
+            await this.syncService.syncPendingOrders();
+            
             order.kitchen_status = 'preparing';
             this.filterOrders();
             
@@ -318,6 +328,13 @@ export class KdsPage implements OnInit, OnDestroy {
                         try {
                             // Marcar como lista (eliminar de KDS)
                             await this.orderService.updateOrderKitchenStatus(order.id_local, 'ready');
+                            
+                            // Marcar ticket KDS como DONE
+                            await this.kdsService.updateTicketStatus(order.id_local, 'DONE');
+                            
+                            // Sincronizar inmediatamente tanto tickets como órdenes
+                            await this.syncService.syncKdsTickets();
+                            await this.syncService.syncPendingOrders();
                             
                             // Mover a historial
                             this.finishedOrders.unshift(order);
@@ -359,6 +376,14 @@ export class KdsPage implements OnInit, OnDestroy {
                         try {
                             // Restaurar a estado "pending"
                             await this.orderService.updateOrderKitchenStatus(order.id_local, 'pending');
+                            
+                            // Restaurar ticket KDS a NEW
+                            await this.kdsService.updateTicketStatus(order.id_local, 'NEW');
+                            
+                            // Sincronizar inmediatamente tanto tickets como órdenes
+                            await this.syncService.syncKdsTickets();
+                            await this.syncService.syncPendingOrders();
+                            
                             order.kitchen_status = 'pending';
                             
                             // Mover de vuelta a la lista activa

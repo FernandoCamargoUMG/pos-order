@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { firstValueFrom, timeout, tap, catchError, throwError, Subject } from 'rxjs';
+import { firstValueFrom, lastValueFrom, timeout, tap, catchError, throwError, Subject } from 'rxjs';
 import { DatabaseService } from '../database/database.service';
 import { environment } from '../../../environments/environment';
 
@@ -11,7 +11,7 @@ export interface SyncStatus {
 }
 
 export interface SyncEvent {
-  entity: 'products' | 'tables' | 'orders';
+  entity: 'products' | 'tables' | 'orders' | 'kds';
   timestamp: Date;
 }
 
@@ -92,11 +92,11 @@ export class SyncService {
       );
       
       this.syncStatus.isOnline = true;
-      console.log('✅ Backend online');
+      console.log('Backend online');
       return true;
     } catch (error: any) {
       this.syncStatus.isOnline = false;
-      console.log('❌ Backend offline');
+      console.log('Backend offline');
       return false;
     }
   }
@@ -111,7 +111,7 @@ export class SyncService {
 
   async fullSync(): Promise<void> {
     if (this.isSyncing) {
-      console.log('⚠️ Sincronización ya en progreso, saltando...');
+      console.log('Sincronización ya en progreso, saltando...');
       return;
     }
     
@@ -122,7 +122,7 @@ export class SyncService {
     
     try {
       this.isSyncing = true;
-      console.log('🔄 Iniciando sincronización completa...');
+      console.log('Iniciando sincronización completa...');
       
       // Sincronizar productos
       await this.syncProducts();
@@ -133,14 +133,18 @@ export class SyncService {
       await this.syncOrders();
       this.syncCompleted$.next({ entity: 'orders', timestamp: new Date() });
       
+      // Sincronizar tickets KDS (estados de cocina)
+      await this.syncKdsTickets();
+      this.syncCompleted$.next({ entity: 'kds', timestamp: new Date() });
+      
       // Sincronizar mesas (ahora pueden usar current_order_id del backend)
       await this.syncTables();
       this.syncCompleted$.next({ entity: 'tables', timestamp: new Date() });
       
       this.syncStatus.lastSync = new Date();
-      console.log('✅ Sincronización completa exitosa');
+      console.log('Sincronización completa exitosa');
     } catch (error) {
-      console.error('❌ Error en sincronización completa:', error);
+      console.error('Error en sincronización completa:', error);
     } finally {
       this.isSyncing = false;
     }
@@ -267,7 +271,7 @@ export class SyncService {
             [backendId, user.id_local]
           );
           
-          console.log(`✅ Usuario ${user.username} sincronizado con backend: ${backendId}`);
+          console.log(`Usuario ${user.username} sincronizado con backend: ${backendId}`);
           
           // Si es el usuario logueado, actualizar localStorage
           const currentUserStr = localStorage.getItem('current_user');
@@ -276,7 +280,7 @@ export class SyncService {
             if (currentUser.id_local === user.id_local) {
               currentUser.id_backend = backendId;
               localStorage.setItem('current_user', JSON.stringify(currentUser));
-              console.log('✅ Usuario logueado actualizado en localStorage');
+              console.log('Usuario logueado actualizado en localStorage');
             }
           }
         } catch (error: any) {
@@ -296,7 +300,7 @@ export class SyncService {
                   'UPDATE users SET id_backend = ? WHERE id_local = ?',
                   [backendId, user.id_local]
                 );
-                console.log(`✅ Usuario ${user.username} vinculado con backend existente: ${backendId}`);
+                console.log(`Usuario ${user.username} vinculado con backend existente: ${backendId}`);
                 
                 // Actualizar localStorage si es el usuario logueado
                 const currentUserStr = localStorage.getItem('current_user');
@@ -431,7 +435,7 @@ export class SyncService {
       `);
 
       if (pendingTables.length > 0) {
-        console.log(`📤 Enviando ${pendingTables.length} mesas al backend...`);
+        console.log(`Enviando ${pendingTables.length} mesas al backend...`);
       }
 
       for (const table of pendingTables) {
@@ -470,7 +474,7 @@ export class SyncService {
           );
           
           processedIds.add(table.id);
-          console.log(`✅ Mesa ${table.name} actualizada en backend (status: ${table.status})`);
+          console.log(`Mesa ${table.name} actualizada en backend (status: ${table.status})`);
           
           // Limpiar de cola de sincronización
           await this.db.executeQuery(
@@ -478,11 +482,11 @@ export class SyncService {
             ['table', table.id.toString()]
           );
         } catch (error) {
-          console.error(`❌ Error actualizando mesa ${table.name}:`, error);
+          console.error(`Error actualizando mesa ${table.name}:`, error);
         }
       }
     } catch (error) {
-      console.error('❌ Error enviando cambios de mesas:', error);
+      console.error('Error enviando cambios de mesas:', error);
     }
     
     return processedIds;
@@ -612,13 +616,13 @@ export class SyncService {
       `);
 
       if (pendingOrders.length > 0) {
-        console.log(`📤 Enviando ${pendingOrders.length} órdenes al backend...`);
+        console.log(`Enviando ${pendingOrders.length} órdenes al backend...`);
       }
 
       for (const order of pendingOrders) {
         try {
           if (!order.id_backend) {
-            console.log(`🔍 Procesando orden ${order.id_local}...`);
+            console.log(`Procesando orden ${order.id_local}...`);
             
             // Obtener items de la orden CON modificadores
             const orderItems = await this.db.executeQuery<any>(`
@@ -632,19 +636,19 @@ export class SyncService {
             `, [order.id_local]);
 
             if (orderItems.length === 0) {
-              console.warn(`⚠️ Orden ${order.id_local} no tiene items, saltando...`);
+              console.warn(`Orden ${order.id_local} no tiene items, saltando...`);
               continue;
             }
 
             // Validar que todos los productos tengan id_backend
             const itemsWithoutBackendId = orderItems.filter((item: any) => !item.product_backend_id);
             if (itemsWithoutBackendId.length > 0) {
-              console.warn(`⚠️ Orden ${order.id_local} tiene productos sin id_backend, esperando sincronización de productos...`);
+              console.warn(`Orden ${order.id_local} tiene productos sin id_backend, esperando sincronización de productos...`);
               console.warn(`Productos sin sincronizar: ${itemsWithoutBackendId.map((i: any) => i.product_name).join(', ')}`);
               continue; // Saltar esta orden hasta que los productos se sincronicen
             }
 
-            console.log(`🔍 Items raw de orden ${order.id_local}:`, orderItems);
+            console.log(`Items raw de orden ${order.id_local}:`, orderItems);
 
             // Formatear items para el backend - USAR id_backend de productos y cargar modificadores
             const items = orderItems.map((item: any) => ({
@@ -655,12 +659,12 @@ export class SyncService {
               modifiers: item.modifiers ? item.modifiers.split(',').filter((m: string) => m.trim()) : []
             }));
 
-            console.log(`✅ Items formateados para backend:`, items);
+            console.log(`Items formateados para backend:`, items);
 
             // Verificar que todos los productos tienen backend ID
             const invalidItems = items.filter(item => !item.productId);
             if (invalidItems.length > 0) {
-              console.error(`❌ Orden ${order.id_local} tiene ${invalidItems.length} items sin backend ID`);
+              console.error(`Orden ${order.id_local} tiene ${invalidItems.length} items sin backend ID`);
               continue;
             }
 
@@ -672,21 +676,21 @@ export class SyncService {
             if (userDataStr) {
               try {
                 const userData = JSON.parse(userDataStr);
-                console.log(`🔍 userData completo:`, userData);
+                console.log(`userData completo:`, userData);
                 // SOLO usar id_backend si existe (es un UUID del backend)
                 if (userData.id_backend) {
                   userId = userData.id_backend;
                   console.log(`👤 Usuario detectado de localStorage (id_backend): ${userId}`);
                 }
               } catch (e) {
-                console.error('❌ Error al parsear user data:', e);
+                console.error('Error al parsear user data:', e);
               }
             }
             
             // OPCIÓN 2: Si no hay id_backend en local, obtener usuarios del backend
             if (!userId) {
               try {
-                console.log('🔍 Obteniendo usuarios del backend...');
+                console.log('Obteniendo usuarios del backend...');
                 const backendUsers: any = await firstValueFrom(
                   this.http.get(`${this.apiUrl}/users`, {
                     headers: this.getAuthHeaders()
@@ -697,7 +701,7 @@ export class SyncService {
                   // Usar el primer usuario activo del backend
                   const activeUser = backendUsers.find((u: any) => u.active) || backendUsers[0];
                   userId = activeUser.idLocal || activeUser.id_local || activeUser.id;
-                  console.log(`👤 Usuario obtenido del backend: ${userId} (${activeUser.username})`);
+                  console.log(`Usuario obtenido del backend: ${userId} (${activeUser.username})`);
                   
                   // Guardar el id_backend en el usuario local para futuras órdenes
                   const localUsers = await this.db.executeQuery<any>(`
@@ -714,31 +718,31 @@ export class SyncService {
                       const userData = JSON.parse(userDataStr);
                       userData.id_backend = userId;
                       localStorage.setItem('current_user', JSON.stringify(userData));
-                      console.log('✅ id_backend guardado en localStorage');
+                      console.log('id_backend guardado en localStorage');
                     }
                   }
                 } else {
-                  console.error('❌ No hay usuarios en el backend');
+                  console.error('No hay usuarios en el backend');
                   continue;
                 }
               } catch (error) {
-                console.error('❌ Error obteniendo usuarios del backend:', error);
+                console.error('Error obteniendo usuarios del backend:', error);
                 continue;
               }
             }
             
             if (!userId) {
-              console.error('❌ No se encontró userId válido, no se puede crear orden');
+              console.error('No se encontró userId válido, no se puede crear orden');
               continue;
             }
 
-            console.log(`✅ userId final seleccionado: ${userId}`);
+            console.log(`userId final seleccionado: ${userId}`);
 
             // Las mesas usan INTEGER como PK, NO UUID. El tableId es el mismo en frontend y backend
             const tableId = order.table_id;
             
             if (!tableId) {
-              console.error(`❌ Orden ${order.id_local} no tiene table_id`);
+              console.error(`Orden ${order.id_local} no tiene table_id`);
               continue;
             }
 
@@ -748,11 +752,12 @@ export class SyncService {
               userId: userId,
               deviceId: order.device_id,
               notes: order.notes || undefined,
+              status: order.status, // IMPORTANTE: Enviar el status de la orden (SENT)
               items: items
             };
 
-            console.log(`📤 Creando orden en backend con ${items.length} items...`);
-            console.log(`📋 Payload completo:`, JSON.stringify(orderPayload, null, 2));
+            console.log(`Creando orden en backend con ${items.length} items...`);
+            console.log(`Payload completo:`, JSON.stringify(orderPayload, null, 2));
 
             // Crear nueva orden
             const response: any = await firstValueFrom(
@@ -764,7 +769,7 @@ export class SyncService {
             const backendId = response.idBackend || response.id_backend || response.id;
             
             if (!backendId) {
-              console.error('❌ Backend no devolvió ID de orden');
+              console.error('Backend no devolvió ID de orden');
               continue;
             }
             
@@ -774,7 +779,7 @@ export class SyncService {
             );
             
             processedIds.add(backendId);
-            console.log(`✅ Orden creada en backend: ${backendId} con ${items.length} items`);
+            console.log(`Orden creada en backend: ${backendId} con ${items.length} items`);
             
             // Eliminar de sync_queue
             await this.db.executeQuery(
@@ -783,13 +788,13 @@ export class SyncService {
             );
           } else {
             // Actualizar orden existente
-            console.log(`🔄 Actualizando orden ${order.id_backend}...`);
+            console.log(`Actualizando orden ${order.id_backend}...`);
             
             // Las mesas usan INTEGER como PK, NO UUID. El tableId es el mismo en frontend y backend
             const tableId = order.table_id;
             
             if (!tableId) {
-              console.error(`❌ Orden ${order.id_backend} no tiene table_id para actualizar`);
+              console.error(`Orden ${order.id_backend} no tiene table_id para actualizar`);
               continue;
             }
             
@@ -805,7 +810,7 @@ export class SyncService {
             );
             
             processedIds.add(order.id_backend);
-            console.log(`✅ Orden actualizada: ${order.id_backend}`);
+            console.log(`Orden actualizada: ${order.id_backend}`);
             
             // Eliminar de sync_queue
             await this.db.executeQuery(
@@ -814,7 +819,7 @@ export class SyncService {
             );
           }
         } catch (error: any) {
-          console.error(`❌ Error sincronizando orden ${order.id_local}:`);
+          console.error(`Error sincronizando orden ${order.id_local}:`);
           console.error(`Status: ${error.status}`);
           console.error(`Message: ${error.message}`);
           console.error(`Error completo:`, error);
@@ -824,7 +829,7 @@ export class SyncService {
         }
       }
     } catch (error) {
-      console.error('❌ Error enviando cambios de órdenes:', error);
+      console.error('Error enviando cambios de órdenes:', error);
     }
     
     return processedIds;
@@ -850,6 +855,152 @@ export class SyncService {
     } catch (error) {
       console.error('Error sincronizando modificadores:', error);
       throw error;
+    }
+  }
+
+  // ============================================
+  // SINCRONIZACIÓN DE TICKETS KDS (Kitchen Display System)
+  // ============================================
+
+  private async pushKdsTicketUpdates(): Promise<void> {
+    if (!this.syncStatus.isOnline) {
+      return;
+    }
+
+    try {
+      const db = this.db.getDB();
+      
+      // Obtener tickets con cambios pendientes desde sync_queue
+      const result = await db.query(`
+        SELECT DISTINCT kt.* 
+        FROM kds_tickets kt
+        INNER JOIN sync_queue sq ON sq.entity_id = CAST(kt.id AS TEXT)
+        WHERE sq.entity = 'kds_ticket'
+        AND kt.deleted_at IS NULL
+      `);
+
+      const ticketsToUpdate = result.values || [];
+
+      for (const ticket of ticketsToUpdate) {
+        try {
+          // Actualizar estado del ticket en backend
+          await lastValueFrom(
+            this.http.put(
+              `${this.apiUrl}/kds/${ticket.id}/status`,
+              { status: ticket.status },
+              { headers: this.getAuthHeaders() }
+            )
+          );
+
+          // Eliminar de sync_queue después de sincronizar
+          await db.run(
+            'DELETE FROM sync_queue WHERE entity = ? AND entity_id = ?',
+            ['kds_ticket', ticket.id.toString()]
+          );
+
+          console.log(`✅ Ticket KDS #${ticket.id} actualizado en backend (estado: ${ticket.status})`);
+        } catch (error) {
+          console.error(`❌ Error al actualizar ticket KDS #${ticket.id}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error al sincronizar actualizaciones de tickets KDS:', error);
+    }
+  }
+
+  async syncKdsTickets(): Promise<void> {
+    if (!this.syncStatus.isOnline) {
+      console.log('No se pueden sincronizar tickets KDS: backend offline');
+      return;
+    }
+
+    try {
+      console.log('Sincronizando tickets KDS...');
+      
+      // PASO 1: Subir actualizaciones locales de tickets al backend
+      await this.pushKdsTicketUpdates();
+      
+      // PASO 2: Obtener tickets activos del backend (NEW e IN_PROGRESS)
+      const response = await firstValueFrom(
+        this.http.get<any[]>(`${this.apiUrl}/kds/active`, {
+          headers: this.getAuthHeaders()
+        })
+      );
+
+      console.log(`Recibidos ${response.length} tickets KDS activos del backend`);
+
+      const db = this.db.getDB();
+      
+      // UPSERT tickets del backend en la base de datos local
+      for (const ticket of response) {
+        const ticketId = ticket.id;
+        const orderId = ticket.orderId || ticket.order_id;
+        
+        // Verificar si el ticket ya existe localmente
+        const existingResult = await db.query(
+          'SELECT id FROM kds_tickets WHERE id = ?',
+          [ticketId]
+        );
+
+        if (existingResult.values && existingResult.values.length > 0) {
+          // ACTUALIZAR ticket existente
+          await db.run(`
+            UPDATE kds_tickets 
+            SET order_id = ?, status = ?, started_at = ?, finished_at = ?
+            WHERE id = ?
+          `, [
+            orderId,
+            ticket.status,
+            ticket.startedAt || ticket.started_at || null,
+            ticket.finishedAt || ticket.finished_at || null,
+            ticketId
+          ]);
+          console.log(`Actualizado ticket KDS #${ticketId} - Estado: ${ticket.status}`);
+        } else {
+          // INSERTAR nuevo ticket
+          await db.run(`
+            INSERT INTO kds_tickets (
+              id, order_id, status, started_at, finished_at
+            ) VALUES (?, ?, ?, ?, ?)
+          `, [
+            ticketId,
+            orderId,
+            ticket.status,
+            ticket.startedAt || ticket.started_at || null,
+            ticket.finishedAt || ticket.finished_at || null
+          ]);
+          console.log(`Insertado ticket KDS #${ticketId} para orden ${orderId}`);
+        }
+      }
+
+      // Marcar como DONE los tickets locales que ya no están activos en el backend
+      const localActiveResult = await db.query(`
+        SELECT id FROM kds_tickets 
+        WHERE status IN ('NEW', 'IN_PROGRESS') 
+        AND deleted_at IS NULL
+      `);
+
+      const localActiveTickets = localActiveResult.values || [];
+      const backendTicketIds = new Set(response.map(t => t.id));
+      
+      for (const localTicket of localActiveTickets) {
+        if (!backendTicketIds.has(localTicket.id)) {
+          // Este ticket ya no está activo en el backend, marcarlo como DONE localmente
+          await db.run(`
+            UPDATE kds_tickets 
+            SET status = 'DONE', finished_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `, [localTicket.id]);
+          console.log(`Ticket KDS #${localTicket.id} marcado como DONE (ya no está en backend)`);
+        }
+      }
+
+      this.syncStatus.lastSync = new Date();
+      console.log('Tickets KDS sincronizados correctamente');
+
+    } catch (error) {
+      console.error('Error sincronizando tickets KDS:', error);
+      // No lanzar error para no detener el resto de la sincronización
     }
   }
 
@@ -973,6 +1124,77 @@ export class SyncService {
   }
 
   // ============================================
+  // SINCRONIZACIÓN DE ACTUALIZACIONES DE ÓRDENES
+  // ============================================
+
+  private async syncOrderUpdates(): Promise<void> {
+    if (!this.syncStatus.isOnline) {
+      return;
+    }
+
+    try {
+      const db = this.db.getDB();
+      
+      // Obtener órdenes que tienen cambios pendientes en sync_queue y ya tienen id_backend
+      const result = await db.query(`
+        SELECT DISTINCT o.* 
+        FROM orders o
+        INNER JOIN sync_queue sq ON sq.entity_id = o.id_local 
+        WHERE o.id_backend IS NOT NULL 
+        AND sq.entity = 'order'
+        AND o.deleted_at IS NULL
+      `);
+
+      const ordersToUpdate = result.values || [];
+
+      for (const order of ordersToUpdate) {
+        try {
+          // Mapear kitchen_status del móvil a kitchenStatus del backend
+          const updateData: any = {
+            status: order.status
+          };
+          
+          // Solo incluir kitchenStatus si existe y no es null
+          if (order.kitchen_status) {
+            updateData.kitchenStatus = order.kitchen_status;
+          }
+          
+          // Solo incluir notes si existe y no es null
+          if (order.notes) {
+            updateData.notes = order.notes;
+          }
+          
+          console.log(`📤 Sincronizando orden ${order.id_local} (backend: ${order.id_backend}):`, {
+            status: order.status,
+            kitchen_status: order.kitchen_status,
+            updateData
+          });
+          
+          // Actualizar orden en backend con su nuevo estado
+          await lastValueFrom(
+            this.http.put(`${this.apiUrl}/orders/${order.id_backend}`, updateData, {
+              headers: this.getAuthHeaders()
+            })
+          );
+
+          // Eliminar de sync_queue después de sincronizar exitosamente
+          await db.run(
+            'DELETE FROM sync_queue WHERE entity = ? AND entity_id = ?',
+            ['order', order.id_local]
+          );
+
+          console.log(`✅ Orden ${order.id_local} actualizada en backend (estado: ${order.status})`);
+        } catch (error) {
+          console.error(`❌ Error al actualizar orden ${order.id_local}:`, error);
+          // No eliminamos de sync_queue si falla, se reintentará en próxima sincronización
+        }
+      }
+    } catch (error) {
+      console.error('Error al sincronizar actualizaciones de órdenes:', error);
+    }
+  }
+
+  // ============================================
   // SINCRONIZACIÓN DE ÓRDENES PENDIENTES (legacy)
   // ============================================
 
@@ -984,8 +1206,11 @@ export class SyncService {
 
     try {
       console.log('Sincronizando órdenes pendientes...');
+      
+      // PASO 1: Sincronizar actualizaciones de órdenes existentes (en sync_queue)
+      await this.syncOrderUpdates();
 
-      // Obtener órdenes con idBackend = null (creadas offline)
+      // PASO 2: Obtener órdenes con idBackend = null (creadas offline)
       const pendingOrders = await this.db.executeQuery<any>(`
         SELECT * FROM orders 
         WHERE id_backend IS NULL 
