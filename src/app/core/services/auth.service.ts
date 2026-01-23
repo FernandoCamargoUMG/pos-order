@@ -4,6 +4,7 @@ import { DatabaseService } from '../database/database.service';
 import { User, Role } from '../models';
 import { v4 as uuidv4 } from 'uuid';
 import { SyncService } from './sync.service';
+import * as bcrypt from 'bcryptjs';
 
 export interface AuthUser extends User {
   role?: Role;
@@ -38,7 +39,8 @@ export class AuthService {
   }
 
   async login(username: string, pin: string): Promise<AuthUser> {
-    // Intentar primero con el backend si está online
+    // PASO 1: Intentar login con backend si está online
+    let backendLoginSuccess = false;
     try {
       const isOnline = await this.syncService.checkConnection();
       
@@ -48,6 +50,7 @@ export class AuthService {
         
         if (backendResponse) {
           console.log('✅ Login exitoso con backend');
+          backendLoginSuccess = true;
           
           // Sincronizar datos después del login exitoso
           console.log('🔄 Iniciando sincronización completa...');
@@ -59,21 +62,56 @@ export class AuthService {
       console.log('⚠️ Backend no disponible o error en login, usando autenticación local', error);
     }
 
-    // Consultar usuario local (ya sea que se haya sincronizado o no)
+    // PASO 2: Buscar usuario por username (sin validar PIN aún)
     const query = `
       SELECT u.*, r.name as role_name 
       FROM users u
       LEFT JOIN roles r ON u.role_id = r.id
-      WHERE u.username = ? AND u.pin = ? AND u.active = 1 AND u.deleted_at IS NULL
+      WHERE u.username = ? AND u.active = 1 AND u.deleted_at IS NULL
     `;
 
-    const users = await this.db.executeQuery<any>(query, [username, pin]);
+    let users = await this.db.executeQuery<any>(query, [username]);
 
+    // PASO 3: Si no existe localmente pero el backend validó, sincronizar usuarios
+    if (users.length === 0 && backendLoginSuccess) {
+      console.log('🔄 Usuario no existe localmente pero backend lo validó. Sincronizando usuarios...');
+      try {
+        await this.syncService.syncUsers();
+        // Reintentar consulta local
+        users = await this.db.executeQuery<any>(query, [username]);
+        console.log('✅ Usuario sincronizado exitosamente');
+      } catch (syncError) {
+        console.error('❌ Error sincronizando usuarios:', syncError);
+      }
+    }
+
+    // PASO 4: Verificar si el usuario existe
     if (users.length === 0) {
       throw new Error('Usuario o PIN incorrecto');
     }
 
     const userData = users[0];
+    const storedPin = userData.pin;
+
+    // PASO 5: Validar PIN (encriptado o texto plano)
+    let pinIsValid = false;
+
+    if (storedPin.startsWith('$2b$') || storedPin.startsWith('$2a$')) {
+      // PIN encriptado con bcrypt - comparar con bcrypt
+      console.log('🔐 Validando PIN encriptado con bcrypt...');
+      pinIsValid = await bcrypt.compare(pin, storedPin);
+    } else {
+      // PIN en texto plano - comparar directamente
+      console.log('🔓 Validando PIN en texto plano...');
+      pinIsValid = (pin === storedPin);
+    }
+
+    if (!pinIsValid) {
+      throw new Error('Usuario o PIN incorrecto');
+    }
+
+    console.log('✅ PIN validado correctamente');
+
     const user: AuthUser = {
       id_local: userData.id_local,
       id_backend: userData.id_backend,

@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { DatabaseService } from '../database/database.service';
+import { SyncService } from './sync.service';
 
 export interface User {
     id_local: string;
@@ -23,7 +24,10 @@ export interface Role {
     providedIn: 'root'
 })
 export class UserService {
-    constructor(private db: DatabaseService) { }
+    constructor(
+        private db: DatabaseService,
+        private syncService: SyncService
+    ) { }
 
     /**
      * Obtiene todos los usuarios activos (no eliminados)
@@ -118,6 +122,15 @@ export class UserService {
             user.device_id || null
         ]);
 
+        // Sincronizar inmediatamente con el backend
+        console.log('🔄 Usuario creado localmente, sincronizando con backend...');
+        try {
+            await this.syncService.syncUsers();
+            console.log('✅ Usuario sincronizado con backend exitosamente');
+        } catch (error) {
+            console.error('⚠️ Error sincronizando usuario (se subirá en próxima sincronización):', error);
+        }
+
         return id_local;
     }
 
@@ -180,6 +193,15 @@ export class UserService {
     `;
 
         await this.db.run(query, values);
+
+        // Sincronizar inmediatamente con el backend
+        console.log('🔄 Usuario actualizado localmente, sincronizando con backend...');
+        try {
+            await this.syncService.syncUsers();
+            console.log('✅ Usuario sincronizado con backend exitosamente');
+        } catch (error) {
+            console.error('⚠️ Error sincronizando usuario (se subirá en próxima sincronización):', error);
+        }
     }
 
     /**

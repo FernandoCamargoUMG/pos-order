@@ -134,6 +134,15 @@ export class SyncService {
       // Sincronizar upsellings (catálogo)
       await this.syncUpsellings();
       
+      // Sincronizar usuarios
+      try {
+        console.log('🔄 Iniciando sincronización de USUARIOS...');
+        await this.syncUsers();
+        console.log('✅ Usuarios sincronizados');
+      } catch (userError) {
+        console.error('❌ ERROR CRÍTICO en sincronización de usuarios:', userError);
+      }
+      
       // IMPORTANTE: Sincronizar órdenes ANTES que mesas
       // Así las órdenes se crean en backend primero y las mesas pueden referenciarlas
       await this.syncOrders();
@@ -233,104 +242,6 @@ export class SyncService {
 
     } catch (error) {
       console.error('Error sincronizando productos:', error);
-      throw error;
-    }
-  }
-
-  // ============================================
-  // SINCRONIZACIÓN DE USUARIOS
-  // ============================================
-
-  async syncUsers(): Promise<void> {
-    if (!this.syncStatus.isOnline) {
-      console.log('No se pueden sincronizar usuarios: backend offline');
-      return;
-    }
-
-    try {
-      console.log('Sincronizando usuarios...');
-      
-      // PASO 1: Obtener usuarios locales que NO tienen id_backend
-      const localUsers = await this.db.executeQuery<any>(`
-        SELECT * FROM users WHERE id_backend IS NULL AND deleted_at IS NULL
-      `);
-
-      // PASO 2: Crear usuarios locales en el backend
-      for (const user of localUsers) {
-        try {
-          const response: any = await firstValueFrom(
-            this.http.post(`${this.apiUrl}/users`, {
-              username: user.username,
-              pin: user.pin,
-              roleId: user.role_id,
-              active: user.active === 1
-            }, {
-              headers: this.getAuthHeaders()
-            })
-          );
-
-          const backendId = response.idLocal || response.id_local || response.id;
-          
-          // Actualizar id_backend del usuario local
-          await this.db.executeQuery(
-            'UPDATE users SET id_backend = ? WHERE id_local = ?',
-            [backendId, user.id_local]
-          );
-          
-          console.log(`Usuario ${user.username} sincronizado con backend: ${backendId}`);
-          
-          // Si es el usuario logueado, actualizar localStorage
-          const currentUserStr = localStorage.getItem('current_user');
-          if (currentUserStr) {
-            const currentUser = JSON.parse(currentUserStr);
-            if (currentUser.id_local === user.id_local) {
-              currentUser.id_backend = backendId;
-              localStorage.setItem('current_user', JSON.stringify(currentUser));
-              console.log('Usuario logueado actualizado en localStorage');
-            }
-          }
-        } catch (error: any) {
-          // Si el usuario ya existe en backend (error 409 o similar), intentar obtenerlo
-          if (error.status === 409 || error.status === 400) {
-            try {
-              const existingUsers = await firstValueFrom(
-                this.http.get<any[]>(`${this.apiUrl}/users`, {
-                  headers: this.getAuthHeaders()
-                })
-              );
-              
-              const matchingUser = existingUsers.find(u => u.username === user.username);
-              if (matchingUser) {
-                const backendId = matchingUser.idLocal || matchingUser.id_local || matchingUser.id;
-                await this.db.executeQuery(
-                  'UPDATE users SET id_backend = ? WHERE id_local = ?',
-                  [backendId, user.id_local]
-                );
-                console.log(`Usuario ${user.username} vinculado con backend existente: ${backendId}`);
-                
-                // Actualizar localStorage si es el usuario logueado
-                const currentUserStr = localStorage.getItem('current_user');
-                if (currentUserStr) {
-                  const currentUser = JSON.parse(currentUserStr);
-                  if (currentUser.id_local === user.id_local) {
-                    currentUser.id_backend = backendId;
-                    localStorage.setItem('current_user', JSON.stringify(currentUser));
-                  }
-                }
-              }
-            } catch (fetchError) {
-              console.error(`Error obteniendo usuario ${user.username} del backend:`, fetchError);
-            }
-          } else {
-            console.error(`Error sincronizando usuario ${user.username}:`, error);
-          }
-        }
-      }
-
-      console.log('Usuarios sincronizados correctamente');
-
-    } catch (error) {
-      console.error('Error sincronizando usuarios:', error);
       throw error;
     }
   }
@@ -1136,6 +1047,184 @@ export class SyncService {
           }
         } catch (error) {
           console.error(`Error sincronizando upselling ${upselling.title}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error obteniendo cambios locales:', error);
+    }
+    
+    return processedIds;
+  }
+
+  // ============================================
+  // SINCRONIZACIÓN DE USUARIOS
+  // ============================================
+
+  async syncUsers(): Promise<void> {
+    if (!this.syncStatus.isOnline) {
+      console.log('No se pueden sincronizar usuarios: backend offline');
+      return;
+    }
+
+    try {
+      console.log('🔄 Sincronizando usuarios (SUBIR y DESCARGAR)...');
+      
+      // PASO 1: SUBIR usuarios locales al backend
+      const uploadedIds = await this.pushLocalUserChanges();
+
+      // PASO 2: DESCARGAR usuarios del backend
+      const response = await firstValueFrom(
+        this.http.get<any[]>(`${this.apiUrl}/users`, {
+          headers: this.getAuthHeaders()
+        })
+      );
+
+      console.log(`📥 Recibidos ${response.length} usuarios del backend`);
+
+      // PASO 3: UPSERT usuarios del backend (sin duplicar por username)
+      const db = this.db.getDB();
+      for (const user of response) {
+        const backendId = user.idBackend || user.id_backend || user.id;
+        
+        // Saltar usuarios que acabamos de subir (ya están actualizados)
+        if (uploadedIds.has(backendId)) {
+          console.log(`⏭️ Saltando ${user.username} (recién subido)`);
+          continue;
+        }
+
+        // VERIFICAR si existe por USERNAME (evita duplicados)
+        const existing = await db.query(
+          'SELECT id_local, id_backend FROM users WHERE username = ?',
+          [user.username]
+        );
+
+        if (existing.values && existing.values.length > 0) {
+          // Ya existe localmente: SOLO actualizar id_backend y datos
+          const localId = existing.values[0].id_local;
+          await db.run(`
+            UPDATE users 
+            SET id_backend = ?, pin = ?, role_id = ?, device_id = ?, active = ?
+            WHERE id_local = ?
+          `, [
+            backendId,
+            user.pin,
+            user.roleId || user.role_id,
+            user.deviceId || user.device_id || null,
+            user.active ? 1 : 0,
+            localId
+          ]);
+          console.log(`🔄 Actualizado: ${user.username} (vinculado id_backend: ${backendId})`);
+        } else {
+          // NO existe localmente: INSERTAR nuevo usuario
+          const newIdLocal = `user-${backendId}-${Date.now()}`;
+          await db.run(`
+            INSERT INTO users (id_local, id_backend, username, pin, role_id, device_id, active) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `, [
+            newIdLocal,
+            backendId,
+            user.username,
+            user.pin,
+            user.roleId || user.role_id,
+            user.deviceId || user.device_id || null,
+            user.active ? 1 : 0
+          ]);
+          console.log(`✅ Insertado: ${user.username} (nuevo en este dispositivo)`);
+        }
+      }
+
+      console.log('✅ Usuarios sincronizados correctamente');
+
+    } catch (error) {
+      console.error('❌ Error sincronizando usuarios:', error);
+    }
+  }
+
+  private async pushLocalUserChanges(): Promise<Set<string>> {
+    const processedIds = new Set<string>();
+    const db = this.db.getDB();
+    
+    try {
+      console.log('👥 Obteniendo usuarios locales para sincronizar...');
+      
+      // Obtener usuarios locales (excepto admin master que no se sincroniza)
+      const result = await db.query(`
+        SELECT * FROM users 
+        WHERE deleted_at IS NULL
+        AND id_local != 'user-admin-master'
+      `);
+
+      const pendingUsers = result.values || [];
+      
+      console.log(`📋 Usuarios locales encontrados: ${pendingUsers.length}`);
+      pendingUsers.forEach(u => console.log(`  - ${u.username} (id_backend: ${u.id_backend || 'NULL'})`));
+
+      if (pendingUsers.length === 0) {
+        console.log('No hay cambios locales de usuarios pendientes');
+        return processedIds;
+      }
+
+      console.log(`Enviando ${pendingUsers.length} cambios de usuarios al backend...`);
+
+      for (const user of pendingUsers) {
+        try {
+          console.log(`🔄 Procesando usuario: ${user.username}...`);
+          
+          // Si tiene id_backend, actualizar
+          if (user.id_backend) {
+            console.log(`  ↗️ Actualizando en backend (ID: ${user.id_backend})...`);
+            await firstValueFrom(
+              this.http.patch(`${this.apiUrl}/users/${user.id_backend}`, {
+                username: user.username,
+                pin: user.pin,
+                roleId: user.role_id,
+                deviceId: user.device_id || null,
+                active: user.active || 1
+              }, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            console.log(`  ↗️ Creando en backend (usuario nuevo)...`);
+            
+            console.log(`Usuario actualizado en backend: ${user.username}`);
+            processedIds.add(user.id_backend);
+          } else {
+            // No tiene id_backend, crear nuevo en backend
+            const response: any = await firstValueFrom(
+              this.http.post(`${this.apiUrl}/auth/register`, {
+                username: user.username,
+                pin: user.pin,
+                roleId: user.role_id,
+                deviceId: user.device_id || null
+              }, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            
+            // La respuesta de /auth/register es { access_token, user }
+            const backendId = response.user?.id || response.user?.idBackend || response.id || response.idBackend;
+            console.log(`  📦 Respuesta del backend:`, response);
+            console.log(`  🔑 ID extraído del backend: ${backendId}`);
+            
+            if (!backendId) {
+              console.error('❌ No se pudo obtener ID del backend para usuario:', user.username, response);
+              continue;
+            }
+            
+            // Guardar id_backend (SIN cambiar el id_local)
+            await db.run(
+              'UPDATE users SET id_backend = ? WHERE id_local = ?',
+              [backendId, user.id_local]
+            );
+            console.log(`✅ Usuario creado en backend: ${user.username} (ID backend: ${backendId})`);
+            processedIds.add(backendId);
+          }
+        } catch (error: any) {
+          console.error(`❌ ERROR sincronizando usuario ${user.username}:`, error);
+          console.error(`   Status: ${error.status}, Message: ${error.message}`);
+          if (error.error) {
+            console.error(`   Error detail:`, error.error);
+          }
         }
       }
     } catch (error) {

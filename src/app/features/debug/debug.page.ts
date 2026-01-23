@@ -67,6 +67,7 @@ export class DebugPage implements OnInit {
     { value: 'products', label: 'Productos' },
     { value: 'tables', label: 'Mesas' },
     { value: 'modifiers', label: 'Modificadores' },
+    { value: 'upselling_options', label: 'Upsellings' },
     { value: 'orders', label: 'Órdenes' },
     { value: 'order_items', label: 'Items de Órdenes' },
     { value: 'roles', label: 'Roles' },
