@@ -849,116 +849,64 @@ export class SyncService {
     }
 
     try {
-      console.log('Sincronizando modificadores...');
-      
+      console.log('🔄 Sincronizando modificadores...');
       const db = this.db.getDB();
       
-      // PASO 1: DESCARGAR modifiers del backend primero
-      const response = await firstValueFrom(
+      // PASO 1: Descargar modifiers del backend
+      const backendModifiers = await firstValueFrom(
         this.http.get<any[]>(`${this.apiUrl}/modifiers`, {
           headers: this.getAuthHeaders()
         })
       );
       
-      // Crear set de modifiers que ya existen en backend (por name + type)
-      const backendModifiers = new Map<string, any>();
-      response.forEach(m => {
-        const key = `${m.name.toLowerCase()}_${m.type}`;
-        backendModifiers.set(key, m);
-      });
-      
-      // PASO 2: SUBIR modifiers locales al backend (crear o actualizar)
+      // PASO 2: Obtener modifiers locales
       const localModifiers = await db.query(
         'SELECT * FROM modifiers WHERE deleted_at IS NULL'
       );
       
-      const modifiersToSync = localModifiers.values || [];
-      
-      for (const modifier of modifiersToSync) {
+      // PASO 3: Subir cada modifier local al backend
+      for (const local of localModifiers.values || []) {
         try {
-          // Si el ID es alto (>= 400), es del backend, hacer UPDATE
-          if (modifier.id >= 400) {
-            const existingInBackend = response.find((m: any) => m.id === modifier.id);
-            
-            if (existingInBackend) {
-              // Actualizar en backend
-              await firstValueFrom(
-                this.http.put(`${this.apiUrl}/modifiers/${modifier.id}`, {
-                  name: modifier.name,
-                  type: modifier.type,
-                  category: modifier.category || 'Todos'
-                }, {
-                  headers: this.getAuthHeaders()
-                })
-              );
-              console.log(`✅ Modifier "${modifier.name}" (ID: ${modifier.id}) actualizado en backend`);
-            }
+          // Buscar si ya existe en backend (por nombre y tipo)
+          const existsInBackend = backendModifiers.find((b: any) => 
+            b.name.toLowerCase() === local.name.toLowerCase() && 
+            b.type === local.type
+          );
+          
+          if (existsInBackend) {
+            // Ya existe en backend, actualizar
+            await firstValueFrom(
+              this.http.put(`${this.apiUrl}/modifiers/${existsInBackend.id}`, {
+                name: local.name,
+                type: local.type,
+                category: local.category || 'Todos'
+              }, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            console.log(`✅ Actualizado: ${local.name}`);
           } else {
-            // ID local bajo, verificar si existe por nombre+tipo
-            const key = `${modifier.name.toLowerCase()}_${modifier.type}`;
-            
-            if (!backendModifiers.has(key)) {
-              // No existe, crear nuevo
-              const created = await firstValueFrom(
-                this.http.post<any>(`${this.apiUrl}/modifiers`, {
-                  name: modifier.name,
-                  type: modifier.type,
-                  category: modifier.category || 'Todos'
-                }, {
-                  headers: this.getAuthHeaders()
-                })
-              );
-              console.log(`✅ Modifier "${modifier.name}" creado en backend con ID ${created.id}`);
-              
-              // Actualizar ID local con el del backend
-              await db.run(
-                'UPDATE modifiers SET id = ? WHERE id = ?',
-                [created.id, modifier.id]
-              );
-              
-              backendModifiers.set(key, created);
-            }
+            // No existe en backend, crear
+            await firstValueFrom(
+              this.http.post(`${this.apiUrl}/modifiers`, {
+                name: local.name,
+                type: local.type,
+                category: local.category || 'Todos'
+              }, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            console.log(`✅ Creado: ${local.name}`);
           }
         } catch (error: any) {
-          console.error(`Error sincronizando modifier "${modifier.name}":`, error);
+          console.error(`❌ Error con "${local.name}":`, error);
         }
       }
       
-      // PASO 3: UPSERT modifiers del backend en local (solo los del backend, no duplicar)
-      // Primero, obtener modifiers actualizados del backend
-      const updatedResponse = await firstValueFrom(
-        this.http.get<any[]>(`${this.apiUrl}/modifiers`, {
-          headers: this.getAuthHeaders()
-        })
-      );
-
-      for (const modifier of updatedResponse) {
-        // Buscar por name + type en lugar de por id
-        const existing = await db.query(
-          'SELECT id FROM modifiers WHERE LOWER(name) = ? AND type = ?',
-          [modifier.name.toLowerCase(), modifier.type]
-        );
-
-        if (existing.values && existing.values.length > 0) {
-          // Actualizar existente (incluyendo el id del backend)
-          await db.run(
-            `UPDATE modifiers SET id = ?, name = ?, type = ?, category = ? WHERE LOWER(name) = ? AND type = ?`,
-            [modifier.id, modifier.name, modifier.type, modifier.category || 'Todos', modifier.name.toLowerCase(), modifier.type]
-          );
-        } else {
-          // Insertar nuevo del backend
-          await db.run(
-            `INSERT INTO modifiers (id, name, type, category) VALUES (?, ?, ?, ?)`,
-            [modifier.id, modifier.name, modifier.type, modifier.category || 'Todos']
-          );
-        }
-      }
-
-      console.log(`✅ ${updatedResponse.length} modificadores sincronizados con backend`);
+      console.log(`✅ Sincronización completa`);
 
     } catch (error) {
-      console.error('Error sincronizando modificadores:', error);
-      // No lanzar error para no detener la sincronización
+      console.error('❌ Error sincronizando modificadores:', error);
     }
   }
 
