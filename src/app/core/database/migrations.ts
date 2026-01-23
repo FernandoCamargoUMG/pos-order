@@ -280,6 +280,52 @@ export const MIGRATIONS: Migration[] = [
         down: `
             -- No se puede revertir fácilmente en SQLite
         `
+    },
+    
+    {
+        version: 4,
+        name: 'add_upselling_id_backend',
+        up: `
+            -- Agregar columna id_backend a upselling_options (igual que productos y modifiers)
+            ALTER TABLE upselling_options ADD COLUMN id_backend INTEGER;
+            
+            -- Para upsellings existentes con ID alto, copiar ID a id_backend
+            UPDATE upselling_options SET id_backend = id WHERE id >= 400;
+            
+            -- Índice para optimización
+            CREATE INDEX IF NOT EXISTS idx_upselling_id_backend ON upselling_options(id_backend);
+        `,
+        down: `
+            DROP INDEX IF EXISTS idx_upselling_id_backend;
+        `
+    },
+    
+    {
+        version: 5,
+        name: 'reset_autoincrement_counters',
+        up: `
+            -- Resetear contadores de autoincrement para modifiers y upselling_options
+            -- Esto limpia los IDs grandes y permite que empiecen desde 1
+            DELETE FROM sqlite_sequence WHERE name='modifiers';
+            DELETE FROM sqlite_sequence WHERE name='upselling_options';
+        `,
+        down: `
+            -- No es necesario revertir
+        `
+    },
+    
+    {
+        version: 6,
+        name: 'ensure_admin_user',
+        up: `
+            -- Garantizar que existe el usuario admin
+            -- Esta migración es idempotente: INSERT OR IGNORE no falla si ya existe
+            INSERT OR IGNORE INTO users (id_local, username, pin, role_id, device_id, active) 
+            VALUES ('user-admin-master', 'admin', '2024', 1, 'production-device', 1);
+        `,
+        down: `
+            DELETE FROM users WHERE id_local = 'user-admin-master';
+        `
     }
 ];
 

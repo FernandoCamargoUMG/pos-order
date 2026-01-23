@@ -131,6 +131,9 @@ export class SyncService {
       // Sincronizar modifiers (catálogo)
       await this.syncModifiers();
       
+      // Sincronizar upsellings (catálogo)
+      await this.syncUpsellings();
+      
       // IMPORTANTE: Sincronizar órdenes ANTES que mesas
       // Así las órdenes se crean en backend primero y las mesas pueden referenciarlas
       await this.syncOrders();
@@ -975,6 +978,164 @@ export class SyncService {
           }
         } catch (error) {
           console.error(`Error sincronizando modifier ${modifier.name}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error obteniendo cambios locales:', error);
+    }
+    
+    return processedIds;
+  }
+
+  // ============================================
+  // SINCRONIZACIÓN DE UPSELLING OPTIONS
+  // ============================================
+
+  async syncUpsellings(): Promise<void> {
+    if (!this.syncStatus.isOnline) {
+      console.log('No se pueden sincronizar upsellings: backend offline');
+      return;
+    }
+
+    try {
+      console.log('Sincronizando upsellings...');
+      
+      // PASO 1: Enviar cambios locales pendientes al backend y obtener IDs procesados
+      const processedIds = await this.pushLocalUpsellingChanges();
+
+      // PASO 2: Obtener upsellings del backend
+      const response = await firstValueFrom(
+        this.http.get<any[]>(`${this.apiUrl}/upselling-options`, {
+          headers: this.getAuthHeaders()
+        })
+      );
+
+      console.log(`Recibidos ${response.length} upsellings del backend`);
+
+      // PASO 3: UPSERT upsellings del backend (EXCEPTO los que acabamos de subir)
+      const db = this.db.getDB();
+      for (const upselling of response) {
+        const backendId = upselling.id;
+        
+        // SALTAR upsellings que acabamos de crear/actualizar (evita duplicados)
+        if (processedIds.has(backendId)) {
+          console.log(`Saltando ${upselling.title} (ya procesado)`);
+          continue;
+        }
+
+        // Verificar si ya existe (por id_backend)
+        const existing = await db.query(
+          'SELECT id, id_backend FROM upselling_options WHERE id_backend = ?',
+          [backendId]
+        );
+
+        if (existing.values && existing.values.length > 0) {
+          // ACTUALIZAR upselling existente
+          const localId = existing.values[0].id;
+          await db.run(`
+            UPDATE upselling_options 
+            SET title = ?, description = ?, price = ?, type = ?, active = ?, sort_order = ?
+            WHERE id = ?
+          `, [
+            upselling.title,
+            upselling.description || '',
+            upselling.price,
+            upselling.type,
+            upselling.active ? 1 : 0,
+            upselling.sortOrder || 0,
+            localId
+          ]);
+          console.log(`Actualizado: ${upselling.title} (id_local: ${localId})`);
+        } else {
+          // INSERTAR nuevo upselling (no existe en local)
+          await db.run(`
+            INSERT INTO upselling_options (title, description, price, type, active, sort_order, id_backend) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `, [
+            upselling.title,
+            upselling.description || '',
+            upselling.price,
+            upselling.type,
+            upselling.active ? 1 : 0,
+            upselling.sortOrder || 0,
+            backendId
+          ]);
+          console.log(`Insertado: ${upselling.title}`);
+        }
+      }
+
+      console.log('Upsellings sincronizados correctamente');
+
+    } catch (error) {
+      console.error('Error sincronizando upsellings:', error);
+    }
+  }
+
+  private async pushLocalUpsellingChanges(): Promise<Set<number>> {
+    const processedIds = new Set<number>();
+    const db = this.db.getDB();
+    
+    try {
+      // Obtener upsellings locales sin id_backend (nuevos) o todos para actualizar
+      const result = await db.query(`
+        SELECT * FROM upselling_options 
+        WHERE deleted_at IS NULL
+      `);
+
+      const pendingUpsellings = result.values || [];
+
+      if (pendingUpsellings.length === 0) {
+        console.log('No hay cambios locales de upsellings pendientes');
+        return processedIds;
+      }
+
+      console.log(`Enviando ${pendingUpsellings.length} cambios de upsellings al backend...`);
+
+      for (const upselling of pendingUpsellings) {
+        try {
+          // Si tiene id_backend, actualizar
+          if (upselling.id_backend) {
+            await firstValueFrom(
+              this.http.put(`${this.apiUrl}/upselling-options/${upselling.id_backend}`, {
+                title: upselling.title,
+                description: upselling.description || '',
+                price: parseFloat(upselling.price),
+                type: upselling.type,
+                active: upselling.active === 1,
+                sortOrder: upselling.sort_order || 0
+              }, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            console.log(`Upselling actualizado en backend: ${upselling.title}`);
+            processedIds.add(upselling.id_backend);
+          } else {
+            // No tiene id_backend, crear nuevo en backend
+            const response: any = await firstValueFrom(
+              this.http.post(`${this.apiUrl}/upselling-options`, {
+                title: upselling.title,
+                description: upselling.description || '',
+                price: parseFloat(upselling.price),
+                type: upselling.type,
+                active: upselling.active === 1,
+                sortOrder: upselling.sort_order || 0
+              }, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            
+            const backendId = response.id;
+            
+            // Guardar id_backend (SIN cambiar el id local)
+            await db.run(
+              'UPDATE upselling_options SET id_backend = ? WHERE id = ?',
+              [backendId, upselling.id]
+            );
+            console.log(`Upselling creado en backend: ${upselling.title} (ID backend: ${backendId})`);
+            processedIds.add(backendId);
+          }
+        } catch (error) {
+          console.error(`Error sincronizando upselling ${upselling.title}:`, error);
         }
       }
     } catch (error) {
