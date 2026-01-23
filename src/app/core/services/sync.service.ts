@@ -849,65 +849,139 @@ export class SyncService {
     }
 
     try {
-      console.log('🔄 Sincronizando modificadores...');
-      const db = this.db.getDB();
+      console.log('Sincronizando modificadores...');
       
-      // PASO 1: Descargar modifiers del backend
-      const backendModifiers = await firstValueFrom(
+      // PASO 1: Enviar cambios locales pendientes al backend y obtener IDs procesados
+      const processedIds = await this.pushLocalModifierChanges();
+
+      // PASO 2: Obtener modifiers del backend
+      const response = await firstValueFrom(
         this.http.get<any[]>(`${this.apiUrl}/modifiers`, {
           headers: this.getAuthHeaders()
         })
       );
-      
-      // PASO 2: Obtener modifiers locales
-      const localModifiers = await db.query(
-        'SELECT * FROM modifiers WHERE deleted_at IS NULL'
-      );
-      
-      // PASO 3: Subir cada modifier local al backend
-      for (const local of localModifiers.values || []) {
-        try {
-          // Buscar si ya existe en backend (por nombre y tipo)
-          const existsInBackend = backendModifiers.find((b: any) => 
-            b.name.toLowerCase() === local.name.toLowerCase() && 
-            b.type === local.type
-          );
-          
-          if (existsInBackend) {
-            // Ya existe en backend, actualizar
-            await firstValueFrom(
-              this.http.put(`${this.apiUrl}/modifiers/${existsInBackend.id}`, {
-                name: local.name,
-                type: local.type,
-                category: local.category || 'Todos'
-              }, {
-                headers: this.getAuthHeaders()
-              })
-            );
-            console.log(`✅ Actualizado: ${local.name}`);
-          } else {
-            // No existe en backend, crear
-            await firstValueFrom(
-              this.http.post(`${this.apiUrl}/modifiers`, {
-                name: local.name,
-                type: local.type,
-                category: local.category || 'Todos'
-              }, {
-                headers: this.getAuthHeaders()
-              })
-            );
-            console.log(`✅ Creado: ${local.name}`);
-          }
-        } catch (error: any) {
-          console.error(`❌ Error con "${local.name}":`, error);
+
+      console.log(`Recibidos ${response.length} modificadores del backend`);
+
+      // PASO 3: UPSERT modifiers del backend (EXCEPTO los que acabamos de subir)
+      const db = this.db.getDB();
+      for (const modifier of response) {
+        const backendId = modifier.id;
+        
+        // SALTAR modifiers que acabamos de crear/actualizar (evita duplicados)
+        if (processedIds.has(backendId)) {
+          console.log(`Saltando ${modifier.name} (ya procesado)`);
+          continue;
+        }
+
+        // Verificar si ya existe (por id_backend)
+        const existing = await db.query(
+          'SELECT id, id_backend FROM modifiers WHERE id_backend = ?',
+          [backendId]
+        );
+
+        if (existing.values && existing.values.length > 0) {
+          // ACTUALIZAR modifier existente
+          const localId = existing.values[0].id;
+          await db.run(`
+            UPDATE modifiers 
+            SET name = ?, type = ?, category = ?
+            WHERE id = ?
+          `, [
+            modifier.name,
+            modifier.type,
+            modifier.category || 'Todos',
+            localId
+          ]);
+          console.log(`Actualizado: ${modifier.name} (id_local: ${localId})`);
+        } else {
+          // INSERTAR nuevo modifier (no existe en local)
+          await db.run(`
+            INSERT INTO modifiers (name, type, category, id_backend) 
+            VALUES (?, ?, ?, ?)
+          `, [
+            modifier.name,
+            modifier.type,
+            modifier.category || 'Todos',
+            backendId
+          ]);
+          console.log(`Insertado: ${modifier.name}`);
         }
       }
-      
-      console.log(`✅ Sincronización completa`);
+
+      console.log('Modificadores sincronizados correctamente');
 
     } catch (error) {
-      console.error('❌ Error sincronizando modificadores:', error);
+      console.error('Error sincronizando modificadores:', error);
     }
+  }
+
+  private async pushLocalModifierChanges(): Promise<Set<number>> {
+    const processedIds = new Set<number>();
+    const db = this.db.getDB();
+    
+    try {
+      // Obtener modifiers locales sin id_backend (nuevos) o todos para actualizar
+      const result = await db.query(`
+        SELECT * FROM modifiers 
+        WHERE deleted_at IS NULL
+      `);
+
+      const pendingModifiers = result.values || [];
+
+      if (pendingModifiers.length === 0) {
+        console.log('No hay cambios locales de modificadores pendientes');
+        return processedIds;
+      }
+
+      console.log(`Enviando ${pendingModifiers.length} cambios de modificadores al backend...`);
+
+      for (const modifier of pendingModifiers) {
+        try {
+          // Si tiene id_backend, actualizar
+          if (modifier.id_backend) {
+            await firstValueFrom(
+              this.http.put(`${this.apiUrl}/modifiers/${modifier.id_backend}`, {
+                name: modifier.name,
+                type: modifier.type,
+                category: modifier.category || 'Todos'
+              }, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            console.log(`Modifier actualizado en backend: ${modifier.name}`);
+            processedIds.add(modifier.id_backend);
+          } else {
+            // No tiene id_backend, crear nuevo en backend
+            const response: any = await firstValueFrom(
+              this.http.post(`${this.apiUrl}/modifiers`, {
+                name: modifier.name,
+                type: modifier.type,
+                category: modifier.category || 'Todos'
+              }, {
+                headers: this.getAuthHeaders()
+              })
+            );
+            
+            const backendId = response.id;
+            
+            // Guardar id_backend (SIN cambiar el id local)
+            await db.run(
+              'UPDATE modifiers SET id_backend = ? WHERE id = ?',
+              [backendId, modifier.id]
+            );
+            console.log(`Modifier creado en backend: ${modifier.name} (ID backend: ${backendId})`);
+            processedIds.add(backendId);
+          }
+        } catch (error) {
+          console.error(`Error sincronizando modifier ${modifier.name}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error obteniendo cambios locales:', error);
+    }
+    
+    return processedIds;
   }
 
   // ============================================

@@ -265,6 +265,21 @@ export const MIGRATIONS: Migration[] = [
             DROP INDEX IF EXISTS idx_modifiers_category;
             -- SQLite no soporta DROP COLUMN en versiones antiguas
         `
+    },
+    
+    {
+        version: 3,
+        name: 'add_modifier_id_backend',
+        up: `
+            -- Agregar columna id_backend a modifiers (igual que productos)
+            ALTER TABLE modifiers ADD COLUMN id_backend INTEGER;
+            
+            -- Para modifiers existentes con ID alto, copiar ID a id_backend
+            UPDATE modifiers SET id_backend = id WHERE id >= 400;
+        `,
+        down: `
+            -- No se puede revertir fácilmente en SQLite
+        `
     }
 ];
 
