@@ -41,30 +41,13 @@ export class ModifierService {
    * Obtiene modificadores por tipo y categoría de producto
    */
   async getModifiersByTypeAndCategory(type: 'EXCLUDE' | 'EXTRA' | 'COOKING', productCategory?: string): Promise<Modifier[]> {
-    // Si el producto no tiene categoría, mostrar todos
     if (!productCategory) {
       return this.getModifiersByType(type);
     }
-
-    // Determinar si el producto es bebida o comida
-    // Si la categoría del producto contiene "Bebida", "Coca", "Jugo", etc. es bebida
-    // De lo contrario, es comida
-    const isBebida = productCategory.toLowerCase().includes('bebida') || 
-                     productCategory.toLowerCase().includes('coca') ||
-                     productCategory.toLowerCase().includes('jugo') ||
-                     productCategory.toLowerCase().includes('refresco') ||
-                     productCategory.toLowerCase().includes('agua');
     
-    const modifierCategory = isBebida ? 'Bebidas' : 'Comida';
-
-    // Obtener modificadores que sean para 'Todos' o que coincidan con el tipo de producto
     const result = await this.dbService.executeQuery<Modifier>(
-      `SELECT * FROM modifiers 
-       WHERE type = ? 
-       AND deleted_at IS NULL 
-       AND (category IS NULL OR category = 'Todos' OR category = ?)
-       ORDER BY name`,
-      [type, modifierCategory]
+      `SELECT * FROM modifiers WHERE type = ? AND (category = ? OR category = 'Todos') AND deleted_at IS NULL ORDER BY name`,
+      [type, productCategory]
     );
     return result;
   }
@@ -83,6 +66,8 @@ export class ModifierService {
    * Actualiza un modificador existente
    */
   async updateModifier(id: number, modifier: Partial<Omit<Modifier, 'id'>>): Promise<void> {
+    console.log(`🔄 Actualizando modifier con ID: ${id}`, modifier);
+    
     const fields: string[] = [];
     const values: any[] = [];
 
@@ -99,22 +84,27 @@ export class ModifierService {
       values.push(modifier.category);
     }
 
-    if (fields.length === 0) return;
+    if (fields.length === 0) {
+      console.log('⚠️ No hay campos para actualizar');
+      return;
+    }
 
     values.push(id);
-    await this.dbService.run(
-      `UPDATE modifiers SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    const query = `UPDATE modifiers SET ${fields.join(', ')} WHERE id = ?`;
+    console.log('Query:', query, 'Values:', values);
+    
+    await this.dbService.run(query, values);
+    console.log(`✅ Modifier ${id} actualizado`);
   }
 
   /**
    * Elimina (soft delete) un modificador
    */
   async deleteModifier(id: number): Promise<void> {
+    const now = new Date().toISOString();
     await this.dbService.run(
-      `UPDATE modifiers SET deleted_at = datetime('now') WHERE id = ?`,
-      [id]
+      `UPDATE modifiers SET deleted_at = ? WHERE id = ?`,
+      [now, id]
     );
   }
 }
